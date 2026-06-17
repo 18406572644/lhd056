@@ -157,5 +157,55 @@ const Collision = {
             }
         }
         return null;
+    },
+
+    lineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
+        const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+        if (Math.abs(denom) < 0.0001) return null;
+
+        const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+        const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
+
+        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+            return {
+                x: x1 + t * (x2 - x1),
+                y: y1 + t * (y2 - y1),
+                t: t,
+                u: u
+            };
+        }
+        return null;
+    },
+
+    wallIntersection(wall1, wall2) {
+        return this.lineIntersection(
+            wall1.x1, wall1.y1, wall1.x2, wall1.y2,
+            wall2.x1, wall2.y1, wall2.x2, wall2.y2
+        );
+    },
+
+    findIntersectingWalls(wall, excludeId = null) {
+        const results = [];
+        const objects = Store.getCurrentObjects();
+
+        objects.forEach(obj => {
+            if (obj.type !== 'wall') return;
+            if (excludeId && obj.id === excludeId) return;
+            if (wall.id && obj.id === wall.id) return;
+
+            const intersection = this.wallIntersection(wall, obj);
+            if (intersection) {
+                results.push({
+                    wall: obj,
+                    wallId: obj.id,
+                    x: intersection.x,
+                    y: intersection.y,
+                    t1: intersection.t,
+                    t2: intersection.u
+                });
+            }
+        });
+
+        return results;
     }
 };

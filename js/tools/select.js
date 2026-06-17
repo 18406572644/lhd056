@@ -18,6 +18,9 @@ const SelectTool = {
 
     contextMenuObjectId: null,
 
+    wallEndpointDrag: null,
+    originalWallsState: null,
+
     handleMouseDown(e) {
         if (e.button !== 0) return;
         if (Store.panState.isPanning) return;
@@ -28,6 +31,28 @@ const SelectTool = {
         const world = Coordinates.screenToWorld(screenX, screenY);
 
         this.hideContextMenu();
+
+        if (typeof WallConnection !== 'undefined') {
+            const wallEndpoint = WallConnection.getWallEndpointAtScreenPoint(screenX, screenY, 10);
+            if (wallEndpoint) {
+                Store.selectObject(wallEndpoint.wallId, 'wall');
+                Store.selection.handleType = 'wallEndpoint';
+                Store.selection.wallEndpoint = wallEndpoint.endpoint;
+                Store.dragState.isDragging = true;
+                Store.dragState.startX = world.x;
+                Store.dragState.startY = world.y;
+                this.lastMoveX = world.x;
+                this.lastMoveY = world.y;
+                this.wallEndpointDrag = {
+                    wallId: wallEndpoint.wallId,
+                    endpoint: wallEndpoint.endpoint,
+                    startX: wallEndpoint.worldX,
+                    startY: wallEndpoint.worldY
+                };
+                this.originalWallsState = this._getAllWallsState();
+                return;
+            }
+        }
 
         if (Store.selection.objectIds.length > 0) {
             const primaryObj = Store.getObject(Store.selection.objectId);
@@ -128,6 +153,46 @@ const SelectTool = {
 
         if (!Store.dragState.isDragging) return;
 
+        if (Store.selection.handleType === 'wallEndpoint' && this.wallEndpointDrag) {
+            const snapResult = Snap.snapPointToWallAndGrid(
+                world.x, world.y, this.wallEndpointDrag.wallId
+            );
+
+            if (typeof WallConnection !== 'undefined') {
+                const wall = Store.getObject(this.wallEndpointDrag.wallId);
+                if (wall) {
+                    const currentX = this.wallEndpointDrag.endpoint === 'start' ? wall.x1 : wall.x2;
+                    const currentY = this.wallEndpointDrag.endpoint === 'start' ? wall.y1 : wall.y2;
+
+                    if (currentX !== snapResult.x || currentY !== snapResult.y) {
+                        this._restoreWallsState(this.originalWallsState);
+                        WallConnection.moveWallEndpoint(
+                            this.wallEndpointDrag.wallId,
+                            this.wallEndpointDrag.endpoint,
+                            snapResult.x,
+                            snapResult.y,
+                            true
+                        );
+                    }
+                }
+            } else {
+                const wall = Store.getObject(this.wallEndpointDrag.wallId);
+                if (wall) {
+                    if (this.wallEndpointDrag.endpoint === 'start') {
+                        wall.x1 = snapResult.x;
+                        wall.y1 = snapResult.y;
+                    } else {
+                        wall.x2 = snapResult.x;
+                        wall.y2 = snapResult.y;
+                    }
+                }
+            }
+
+            this.lastMoveX = snapResult.x;
+            this.lastMoveY = snapResult.y;
+            return;
+        }
+
         if (Store.selection.handleType === 'move') {
             const dx = world.x - this.lastMoveX;
             const dy = world.y - this.lastMoveY;
@@ -161,6 +226,44 @@ const SelectTool = {
 
         if (!Store.dragState.isDragging) return;
 
+        if (Store.selection.handleType === 'wallEndpoint' && this.wallEndpointDrag) {
+            const newWallsState = this._getAllWallsState();
+            const wall = Store.getObject(this.wallEndpointDrag.wallId);
+
+            let hasChanged = false;
+            if (wall) {
+                const endX = this.wallEndpointDrag.endpoint === 'start' ? wall.x1 : wall.x2;
+                const endY = this.wallEndpointDrag.endpoint === 'start' ? wall.y1 : wall.y2;
+                hasChanged = (endX !== this.wallEndpointDrag.startX || endY !== this.wallEndpointDrag.startY);
+            }
+
+            if (hasChanged) {
+                this._restoreWallsState(this.originalWallsState);
+
+                const oldStates = Object.keys(this.originalWallsState).map(id => ({
+                    id,
+                    ...this.originalWallsState[id]
+                }));
+                const newStates = Object.keys(newWallsState).map(id => ({
+                    id,
+                    ...newWallsState[id]
+                }));
+
+                CommandManager.execute(new BatchModifyWallsCommand(oldStates, newStates));
+            }
+
+            this.wallEndpointDrag = null;
+            this.originalWallsState = null;
+            Store.dragState.isDragging = false;
+            Store.dragState.startObject = null;
+            Store.dragState.startObjects = [];
+            Store.selection.handleType = null;
+            Store.selection.wallEndpoint = null;
+            Store.selection.handleIndex = null;
+            this.originalObject = null;
+            return;
+        }
+
         if (Store.selection.handleType === 'move' && Store.selection.objectIds.length > 0) {
             if (Store.dragState.startObjects.length > 0) {
                 const gridSize = Store.canvas.gridSize;
@@ -193,6 +296,23 @@ const SelectTool = {
                 const hasMoved = moveInfos.some(m => Math.abs(m.dx) > 0.1 || Math.abs(m.dy) > 0.1);
 
                 if (hasMoved) {
+                    const hasWalls = Store.selection.objectIds.some(id => {
+                        const obj = Store.getObject(id);
+                        return obj && obj.type === 'wall';
+                    });
+
+                    let oldWallConnections = null;
+                    if (hasWalls && typeof WallConnection !== 'undefined') {
+                        oldWallConnections = {};
+                        const walls = Store.getCurrentObjects().filter(o => o.type === 'wall');
+                        walls.forEach(w => {
+                            oldWallConnections[w.id] = {
+                                startConnection: w.startConnection ? JSON.parse(JSON.stringify(w.startConnection)) : undefined,
+                                endConnection: w.endConnection ? JSON.parse(JSON.stringify(w.endConnection)) : undefined
+                            };
+                        });
+                    }
+
                     Store.dragState.startObjects.forEach((start, idx) => {
                         const id = Store.selection.objectIds[idx];
                         const obj = Store.getObject(id);
@@ -216,8 +336,85 @@ const SelectTool = {
                     const commands = moveInfos.map(info => 
                         new MoveObjectsCommand([info.id], info.dx, info.dy)
                     );
-                    
-                    if (commands.length === 1) {
+
+                    if (hasWalls && typeof WallConnection !== 'undefined') {
+                        class MoveWallsWithConnectionsCommand extends Command {
+                            constructor(moveCommands, oldConns) {
+                                super();
+                                this.moveCommands = moveCommands;
+                                this.oldConnections = oldConns;
+                                this.newConnections = null;
+                            }
+                            execute() {
+                                this.moveCommands.forEach(cmd => cmd.execute());
+                                if (typeof WallConnection !== 'undefined') {
+                                    WallConnection.updateAllWallConnections();
+                                    const walls = Store.getCurrentObjects().filter(o => o.type === 'wall');
+                                    this.newConnections = {};
+                                    walls.forEach(w => {
+                                        this.newConnections[w.id] = {
+                                            startConnection: w.startConnection ? JSON.parse(JSON.stringify(w.startConnection)) : undefined,
+                                            endConnection: w.endConnection ? JSON.parse(JSON.stringify(w.endConnection)) : undefined
+                                        };
+                                    });
+                                }
+                            }
+                            undo() {
+                                for (let i = this.moveCommands.length - 1; i >= 0; i--) {
+                                    this.moveCommands[i].undo();
+                                }
+                                if (this.oldConnections) {
+                                    const walls = Store.getCurrentObjects().filter(o => o.type === 'wall');
+                                    walls.forEach(w => {
+                                        if (this.oldConnections[w.id]) {
+                                            const conn = this.oldConnections[w.id];
+                                            if (conn.startConnection !== undefined) {
+                                                if (conn.startConnection) {
+                                                    w.startConnection = JSON.parse(JSON.stringify(conn.startConnection));
+                                                } else {
+                                                    delete w.startConnection;
+                                                }
+                                            }
+                                            if (conn.endConnection !== undefined) {
+                                                if (conn.endConnection) {
+                                                    w.endConnection = JSON.parse(JSON.stringify(conn.endConnection));
+                                                } else {
+                                                    delete w.endConnection;
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                            }
+                            redo() {
+                                this.moveCommands.forEach(cmd => cmd.redo ? cmd.redo() : cmd.execute());
+                                if (this.newConnections) {
+                                    const walls = Store.getCurrentObjects().filter(o => o.type === 'wall');
+                                    walls.forEach(w => {
+                                        if (this.newConnections[w.id]) {
+                                            const conn = this.newConnections[w.id];
+                                            if (conn.startConnection !== undefined) {
+                                                if (conn.startConnection) {
+                                                    w.startConnection = JSON.parse(JSON.stringify(conn.startConnection));
+                                                } else {
+                                                    delete w.startConnection;
+                                                }
+                                            }
+                                            if (conn.endConnection !== undefined) {
+                                                if (conn.endConnection) {
+                                                    w.endConnection = JSON.parse(JSON.stringify(conn.endConnection));
+                                                } else {
+                                                    delete w.endConnection;
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                            }
+                        }
+
+                        CommandManager.execute(new MoveWallsWithConnectionsCommand(commands, oldWallConnections));
+                    } else if (commands.length === 1) {
                         CommandManager.execute(commands[0]);
                     } else {
                         CommandManager.execute(new CompoundCommand(commands));
@@ -273,6 +470,49 @@ const SelectTool = {
         Store.selection.handleType = null;
         Store.selection.handleIndex = null;
         this.originalObject = null;
+    },
+
+    _getAllWallsState() {
+        const state = {};
+        const walls = Store.getCurrentObjects().filter(o => o.type === 'wall');
+        walls.forEach(wall => {
+            state[wall.id] = {
+                x1: wall.x1,
+                y1: wall.y1,
+                x2: wall.x2,
+                y2: wall.y2,
+                startConnection: wall.startConnection ? JSON.parse(JSON.stringify(wall.startConnection)) : undefined,
+                endConnection: wall.endConnection ? JSON.parse(JSON.stringify(wall.endConnection)) : undefined
+            };
+        });
+        return state;
+    },
+
+    _restoreWallsState(state) {
+        Object.keys(state).forEach(wallId => {
+            const wall = Store.getObject(wallId);
+            if (wall) {
+                const saved = state[wallId];
+                wall.x1 = saved.x1;
+                wall.y1 = saved.y1;
+                wall.x2 = saved.x2;
+                wall.y2 = saved.y2;
+                if (saved.startConnection !== undefined) {
+                    if (saved.startConnection) {
+                        wall.startConnection = JSON.parse(JSON.stringify(saved.startConnection));
+                    } else {
+                        delete wall.startConnection;
+                    }
+                }
+                if (saved.endConnection !== undefined) {
+                    if (saved.endConnection) {
+                        wall.endConnection = JSON.parse(JSON.stringify(saved.endConnection));
+                    } else {
+                        delete wall.endConnection;
+                    }
+                }
+            }
+        });
     },
 
     handleResize(obj, world) {

@@ -33,5 +33,36 @@ const Snap = {
     snapAngle(angle, snapDegrees = 15) {
         const snapRad = snapDegrees * Math.PI / 180;
         return Math.round(angle / snapRad) * snapRad;
+    },
+
+    snapPointToWall(x, y, excludeWallId = null) {
+        if (typeof WallConnection !== 'undefined') {
+            return WallConnection.snapToWallFeature(x, y, excludeWallId);
+        }
+        return null;
+    },
+
+    snapPointToWallAndGrid(x, y, excludeWallId = null, gridSize = null) {
+        const grid = gridSize || Store.canvas.gridSize;
+        const gridSnapped = this.snapPointToGrid(x, y, grid);
+
+        const wallSnap = this.snapPointToWall(x, y, excludeWallId);
+        if (wallSnap) {
+            return {
+                x: wallSnap.x,
+                y: wallSnap.y,
+                snapped: true,
+                snapType: wallSnap.type,
+                wallSnap: wallSnap
+            };
+        }
+
+        return {
+            x: gridSnapped.x,
+            y: gridSnapped.y,
+            snapped: false,
+            snapType: 'grid',
+            wallSnap: null
+        };
     }
 };

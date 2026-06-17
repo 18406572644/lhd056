@@ -143,8 +143,10 @@ const App = {
 
     handleMouseMove(e) {
         const rect = e.target.getBoundingClientRect();
-        this.lastMouseX = e.clientX - rect.left;
-        this.lastMouseY = e.clientY - rect.top;
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        this.lastMouseX = screenX;
+        this.lastMouseY = screenY;
 
         this.updateStatusBar();
 
@@ -160,6 +162,18 @@ const App = {
 
         if (this.spacePressed) {
             return;
+        }
+
+        const canvas = document.getElementById('canvas-ui');
+        if (Store.currentTool === 'select' && !Store.dragState.isDragging) {
+            if (typeof WallConnection !== 'undefined') {
+                const wallEndpoint = WallConnection.getWallEndpointAtScreenPoint(screenX, screenY, 10);
+                if (wallEndpoint) {
+                    canvas.style.cursor = 'pointer';
+                } else {
+                    canvas.style.cursor = 'default';
+                }
+            }
         }
 
         const tool = this.tools[Store.currentTool];

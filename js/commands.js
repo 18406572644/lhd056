@@ -22,14 +22,36 @@ class DeleteObjectCommand extends Command {
         this.objectId = objectId;
         this.object = null;
         this.parentGroupId = null;
+        this.connectedWallsState = null;
     }
     execute() {
-        this.object = Store.getObject(this.objectId);
-        if (this.object) {
-            this.object = JSON.parse(JSON.stringify(this.object));
+        const obj = Store.getObject(this.objectId);
+        if (obj) {
+            this.object = JSON.parse(JSON.stringify(obj));
         }
         const parent = Store.getObjectParent(this.objectId);
         this.parentGroupId = parent ? parent.id : null;
+
+        if (obj && obj.type === 'wall' && typeof WallConnection !== 'undefined') {
+            this.connectedWallsState = {};
+            const walls = Store.getCurrentObjects().filter(o => o.type === 'wall');
+            walls.forEach(w => {
+                if (w.id !== this.objectId) {
+                    const hasConnection = 
+                        (w.startConnection && w.startConnection.wallId === this.objectId) ||
+                        (w.endConnection && w.endConnection.wallId === this.objectId);
+                    if (hasConnection) {
+                        this.connectedWallsState[w.id] = {
+                            startConnection: w.startConnection ? JSON.parse(JSON.stringify(w.startConnection)) : null,
+                            endConnection: w.endConnection ? JSON.parse(JSON.stringify(w.endConnection)) : null
+                        };
+                    }
+                }
+            });
+
+            WallConnection.handleWallDeletion(this.objectId);
+        }
+
         Store.removeObject(this.objectId);
         Store.clearSelection();
     }
@@ -45,6 +67,29 @@ class DeleteObjectCommand extends Command {
             }
         } else {
             Store.objects.push(objClone);
+        }
+
+        if (this.connectedWallsState) {
+            Object.keys(this.connectedWallsState).forEach(wallId => {
+                const wall = Store.getObject(wallId);
+                if (wall) {
+                    const state = this.connectedWallsState[wallId];
+                    if (state.startConnection !== undefined) {
+                        if (state.startConnection) {
+                            wall.startConnection = JSON.parse(JSON.stringify(state.startConnection));
+                        } else {
+                            delete wall.startConnection;
+                        }
+                    }
+                    if (state.endConnection !== undefined) {
+                        if (state.endConnection) {
+                            wall.endConnection = JSON.parse(JSON.stringify(state.endConnection));
+                        } else {
+                            delete wall.endConnection;
+                        }
+                    }
+                }
+            });
         }
     }
 }
@@ -333,6 +378,127 @@ class DeleteComponentCommand extends Command {
         if (this.component) {
             Store.addComponent(this.component);
         }
+    }
+}
+
+class ModifyWallEndpointCommand extends Command {
+    constructor(wallId, endpoint, oldX, oldY, newX, newY) {
+        super();
+        this.wallId = wallId;
+        this.endpoint = endpoint;
+        this.oldX = oldX;
+        this.oldY = oldY;
+        this.newX = newX;
+        this.newY = newY;
+        this.oldWallData = null;
+        this.newWallData = null;
+        this.affectedWalls = [];
+    }
+
+    execute() {
+        if (this.newWallData) {
+            this._restoreWallData(this.newWallData);
+        } else {
+            if (typeof WallConnection !== 'undefined') {
+                WallConnection.moveWallEndpoint(this.wallId, this.endpoint, this.newX, this.newY, true);
+            } else {
+                const wall = Store.getObject(this.wallId);
+                if (wall) {
+                    if (this.endpoint === 'start') {
+                        wall.x1 = this.newX;
+                        wall.y1 = this.newY;
+                    } else {
+                        wall.x2 = this.newX;
+                        wall.y2 = this.newY;
+                    }
+                }
+            }
+        }
+    }
+
+    undo() {
+        if (this.oldWallData) {
+            this._restoreWallData(this.oldWallData);
+        } else {
+            if (typeof WallConnection !== 'undefined') {
+                WallConnection.moveWallEndpoint(this.wallId, this.endpoint, this.oldX, this.oldY, false);
+            } else {
+                const wall = Store.getObject(this.wallId);
+                if (wall) {
+                    if (this.endpoint === 'start') {
+                        wall.x1 = this.oldX;
+                        wall.y1 = this.oldY;
+                    } else {
+                        wall.x2 = this.oldX;
+                        wall.y2 = this.oldY;
+                    }
+                }
+            }
+        }
+    }
+
+    setAffectedWalls(wallDataMap) {
+        this.oldWallData = {};
+        this.newWallData = {};
+        const walls = Store.getCurrentObjects().filter(o => o.type === 'wall');
+        walls.forEach(w => {
+            this.oldWallData[w.id] = JSON.parse(JSON.stringify(w));
+        });
+        this.newWallData = wallDataMap;
+    }
+
+    _restoreWallData(data) {
+        Object.keys(data).forEach(wallId => {
+            const wall = Store.getObject(wallId);
+            if (wall) {
+                const saved = data[wallId];
+                Object.keys(saved).forEach(key => {
+                    wall[key] = saved[key];
+                });
+            }
+        });
+    }
+}
+
+class BatchModifyWallsCommand extends Command {
+    constructor(oldStates, newStates) {
+        super();
+        this.oldStates = oldStates;
+        this.newStates = newStates;
+    }
+
+    execute() {
+        this._applyStates(this.newStates);
+    }
+
+    undo() {
+        this._applyStates(this.oldStates);
+    }
+
+    _applyStates(states) {
+        states.forEach(state => {
+            const wall = Store.getObject(state.id);
+            if (wall) {
+                if (state.x1 !== undefined) wall.x1 = state.x1;
+                if (state.y1 !== undefined) wall.y1 = state.y1;
+                if (state.x2 !== undefined) wall.x2 = state.x2;
+                if (state.y2 !== undefined) wall.y2 = state.y2;
+                if (state.startConnection !== undefined) {
+                    if (state.startConnection) {
+                        wall.startConnection = state.startConnection;
+                    } else {
+                        delete wall.startConnection;
+                    }
+                }
+                if (state.endConnection !== undefined) {
+                    if (state.endConnection) {
+                        wall.endConnection = state.endConnection;
+                    } else {
+                        delete wall.endConnection;
+                    }
+                }
+            }
+        });
     }
 }
 

@@ -53,25 +53,113 @@ const RoomTool = {
             const x2 = Math.max(this.startX, snapped.x);
             const y2 = Math.max(this.startY, snapped.y);
 
-            const walls = [
+            const wallData = [
                 { x1: x1, y1: y1, x2: x2, y2: y1 },
                 { x1: x2, y1: y1, x2: x2, y2: y2 },
                 { x1: x2, y1: y2, x2: x1, y2: y2 },
                 { x1: x1, y1: y2, x2: x1, y2: y1 }
             ];
 
-            const commands = walls.map(w => new CreateObjectCommand({
-                id: Store.generateId('wall'),
-                type: 'wall',
-                x1: w.x1,
-                y1: w.y1,
-                x2: w.x2,
-                y2: w.y2,
-                thickness: 12,
-                createdAt: Date.now()
-            }));
+            const newWallIds = [];
+            const commands = wallData.map(w => {
+                const wall = {
+                    id: Store.generateId('wall'),
+                    type: 'wall',
+                    x1: w.x1,
+                    y1: w.y1,
+                    x2: w.x2,
+                    y2: w.y2,
+                    thickness: 12,
+                    createdAt: Date.now()
+                };
+                newWallIds.push(wall.id);
+                return new CreateObjectCommand(wall);
+            });
 
-            CommandManager.execute(new CompoundCommand(commands));
+            class CreateRoomWallsCommand extends Command {
+                constructor(createCommands, wallIds) {
+                    super();
+                    this.createCommands = createCommands;
+                    this.wallIds = wallIds;
+                    this.oldConnections = null;
+                    this.newConnections = null;
+                }
+                execute() {
+                    this.createCommands.forEach(cmd => cmd.execute());
+                    if (typeof WallConnection !== 'undefined') {
+                        const walls = Store.getCurrentObjects().filter(o => o.type === 'wall');
+                        this.oldConnections = {};
+                        walls.forEach(w => {
+                            this.oldConnections[w.id] = {
+                                startConnection: w.startConnection ? JSON.parse(JSON.stringify(w.startConnection)) : undefined,
+                                endConnection: w.endConnection ? JSON.parse(JSON.stringify(w.endConnection)) : undefined
+                            };
+                        });
+                        WallConnection.updateAllWallConnections();
+                        this.newConnections = {};
+                        walls.forEach(w => {
+                            this.newConnections[w.id] = {
+                                startConnection: w.startConnection ? JSON.parse(JSON.stringify(w.startConnection)) : undefined,
+                                endConnection: w.endConnection ? JSON.parse(JSON.stringify(w.endConnection)) : undefined
+                            };
+                        });
+                    }
+                }
+                undo() {
+                    for (let i = this.createCommands.length - 1; i >= 0; i--) {
+                        this.createCommands[i].undo();
+                    }
+                    if (this.oldConnections) {
+                        const walls = Store.getCurrentObjects().filter(o => o.type === 'wall');
+                        walls.forEach(w => {
+                            if (this.oldConnections[w.id]) {
+                                const conn = this.oldConnections[w.id];
+                                if (conn.startConnection !== undefined) {
+                                    if (conn.startConnection) {
+                                        w.startConnection = JSON.parse(JSON.stringify(conn.startConnection));
+                                    } else {
+                                        delete w.startConnection;
+                                    }
+                                }
+                                if (conn.endConnection !== undefined) {
+                                    if (conn.endConnection) {
+                                        w.endConnection = JSON.parse(JSON.stringify(conn.endConnection));
+                                    } else {
+                                        delete w.endConnection;
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+                redo() {
+                    this.createCommands.forEach(cmd => cmd.redo ? cmd.redo() : cmd.execute());
+                    if (this.newConnections) {
+                        const walls = Store.getCurrentObjects().filter(o => o.type === 'wall');
+                        walls.forEach(w => {
+                            if (this.newConnections[w.id]) {
+                                const conn = this.newConnections[w.id];
+                                if (conn.startConnection !== undefined) {
+                                    if (conn.startConnection) {
+                                        w.startConnection = JSON.parse(JSON.stringify(conn.startConnection));
+                                    } else {
+                                        delete w.startConnection;
+                                    }
+                                }
+                                if (conn.endConnection !== undefined) {
+                                    if (conn.endConnection) {
+                                        w.endConnection = JSON.parse(JSON.stringify(conn.endConnection));
+                                    } else {
+                                        delete w.endConnection;
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            CommandManager.execute(new CreateRoomWallsCommand(commands, newWallIds));
         }
 
         Store.previewObject = null;

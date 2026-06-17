@@ -214,25 +214,92 @@ const UIRenderer = {
         ctx.setLineDash([]);
 
         if (isPrimary) {
-            const handleSize = 8 * scale;
-            const endpoints = [start, end];
+            const handleSize = 10 * scale;
+            const endpoints = [
+                { pos: start, connection: wall.startConnection, key: 'start' },
+                { pos: end, connection: wall.endConnection, key: 'end' }
+            ];
 
-            endpoints.forEach(pos => {
-                ctx.fillStyle = '#ffffff';
-                ctx.strokeStyle = '#3b82f6';
+            endpoints.forEach(ep => {
+                let handleColor = '#3b82f6';
+                let innerColor = '#ffffff';
+
+                if (typeof WallConnection !== 'undefined' && ep.connection) {
+                    if (ep.connection.type === 'endpoint') {
+                        handleColor = '#22c55e';
+                    } else if (ep.connection.type === 't-junction') {
+                        handleColor = '#f59e0b';
+                    }
+                }
+
+                ctx.fillStyle = innerColor;
+                ctx.strokeStyle = handleColor;
                 ctx.lineWidth = 2;
 
                 ctx.beginPath();
                 ctx.roundRect(
-                    pos.x - handleSize / 2,
-                    pos.y - handleSize / 2,
+                    ep.pos.x - handleSize / 2,
+                    ep.pos.y - handleSize / 2,
                     handleSize,
                     handleSize,
                     2 * scale
                 );
                 ctx.fill();
                 ctx.stroke();
+
+                if (typeof WallConnection !== 'undefined' && ep.connection) {
+                    const dotSize = 4 * scale;
+                    ctx.fillStyle = handleColor;
+                    ctx.beginPath();
+                    ctx.arc(ep.pos.x, ep.pos.y, dotSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             });
+
+            if (typeof WallConnection !== 'undefined') {
+                this.drawWallConnectionLabels(ctx, wall, scale);
+            }
+        }
+    },
+
+    drawWallConnectionLabels(ctx, wall, scale) {
+        const midpoint = {
+            x: (wall.x1 + wall.x2) / 2,
+            y: (wall.y1 + wall.y2) / 2
+        };
+        const screenMid = Coordinates.worldToScreen(midpoint.x, midpoint.y);
+
+        const connections = [];
+        if (wall.startConnection) {
+            connections.push('起点:' + (wall.startConnection.type === 'endpoint' ? '端点连接' : 'T型连接'));
+        }
+        if (wall.endConnection) {
+            connections.push('终点:' + (wall.endConnection.type === 'endpoint' ? '端点连接' : 'T型连接'));
+        }
+
+        if (connections.length > 0) {
+            const labelText = connections.join(' | ');
+            const fontSize = 11 * scale;
+            ctx.font = `${fontSize}px DM Sans`;
+            const textWidth = ctx.measureText(labelText).width;
+            const padding = 6 * scale;
+            const labelY = screenMid.y - 20 * scale;
+
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.9)';
+            ctx.beginPath();
+            ctx.roundRect(
+                screenMid.x - textWidth / 2 - padding,
+                labelY - fontSize / 2 - padding / 2,
+                textWidth + padding * 2,
+                fontSize + padding,
+                4 * scale
+            );
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(labelText, screenMid.x, labelY);
         }
     },
 
