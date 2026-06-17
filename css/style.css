@@ -872,22 +872,30 @@ html, body {
 .template-btn {
     position: fixed;
     top: 20px;
-    right: 20px;
+    left: 80px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
+    gap: 6px;
+    padding: 8px 14px;
     background: #ffffff;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     color: #374151;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     transition: all 0.15s ease;
     z-index: 100;
+}
+
+.template-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
+    stroke: currentColor;
+    fill: none;
 }
 
 .template-btn:hover {
@@ -896,31 +904,33 @@ html, body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
-.template-btn svg {
-    width: 18px;
-    height: 18px;
-    stroke: #6b7280;
-}
-
 .save-template-btn {
     position: fixed;
     top: 20px;
-    right: 120px;
+    left: 200px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
+    gap: 6px;
+    padding: 8px 14px;
     background: #ffffff;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     color: #374151;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     transition: all 0.15s ease;
     z-index: 100;
+}
+
+.save-template-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
+    stroke: currentColor;
+    fill: none;
 }
 
 .save-template-btn:hover {
@@ -929,11 +939,6 @@ html, body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
-.save-template-btn svg {
-    width: 18px;
-    height: 18px;
-    stroke: #6b7280;
-}
 
 .template-library-panel {
     position: fixed;
