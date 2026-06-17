@@ -48,10 +48,15 @@ const Store = {
         components: []
     },
 
+    templateLibrary: {
+        privateTemplates: []
+    },
+
     init() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
         this.loadComponentLibrary();
+        this.loadTemplateLibrary();
     },
 
     generateId(prefix) {
@@ -434,5 +439,120 @@ const Store = {
             Object.assign(comp, updates);
             this.saveComponentLibrary();
         }
+    },
+
+    loadTemplateLibrary() {
+        try {
+            const saved = localStorage.getItem('floorplan_template_library');
+            if (saved) {
+                const data = JSON.parse(saved);
+                this.templateLibrary.privateTemplates = data.privateTemplates || [];
+            }
+        } catch (e) {
+            console.error('加载模板库失败:', e);
+        }
+    },
+
+    saveTemplateLibrary() {
+        try {
+            localStorage.setItem('floorplan_template_library', JSON.stringify({
+                privateTemplates: this.templateLibrary.privateTemplates
+            }));
+        } catch (e) {
+            console.error('保存模板库失败:', e);
+        }
+    },
+
+    addTemplate(template) {
+        this.templateLibrary.privateTemplates.push(template);
+        this.saveTemplateLibrary();
+    },
+
+    removeTemplate(templateId) {
+        const index = this.templateLibrary.privateTemplates.findIndex(t => t.id === templateId);
+        if (index !== -1) {
+            this.templateLibrary.privateTemplates.splice(index, 1);
+            this.saveTemplateLibrary();
+        }
+    },
+
+    updateTemplate(templateId, updates) {
+        const template = this.templateLibrary.privateTemplates.find(t => t.id === templateId);
+        if (template) {
+            Object.assign(template, updates);
+            this.saveTemplateLibrary();
+        }
+    },
+
+    loadTemplateToCanvas(template) {
+        this.objects = [];
+        this.clearSelection();
+        this.groupEditPath = [];
+
+        const objects = JSON.parse(JSON.stringify(template.objects));
+        this._regenerateTemplateIds(objects);
+        this.objects = objects;
+
+        if (typeof WallConnection !== 'undefined') {
+            WallConnection.updateAllWallConnections();
+        }
+    },
+
+    _regenerateTemplateIds(objects) {
+        const idMap = {};
+
+        objects.forEach(obj => {
+            const oldId = obj.id;
+            const newId = this.generateId(obj.type || 'obj');
+            idMap[oldId] = newId;
+            obj.id = newId;
+        });
+
+        return idMap;
+    },
+
+    saveCurrentAsTemplate(name, category, description) {
+        const objects = JSON.parse(JSON.stringify(this.objects));
+
+        let minX = Infinity, minY = Infinity;
+        let maxX = -Infinity, maxY = -Infinity;
+
+        const getBounds = (obj) => {
+            if (obj.type === 'wall') {
+                minX = Math.min(minX, obj.x1, obj.x2);
+                minY = Math.min(minY, obj.y1, obj.y2);
+                maxX = Math.max(maxX, obj.x1, obj.x2);
+                maxY = Math.max(maxY, obj.y1, obj.y2);
+            } else if (obj.type === 'furniture' || obj.type === 'text') {
+                const hw = obj.width / 2;
+                const hh = obj.height / 2;
+                minX = Math.min(minX, obj.x - hw);
+                minY = Math.min(minY, obj.y - hh);
+                maxX = Math.max(maxX, obj.x + hw);
+                maxY = Math.max(maxY, obj.y + hh);
+            } else if (obj.type === 'group' && obj.children) {
+                obj.children.forEach(getBounds);
+            }
+        };
+
+        objects.forEach(getBounds);
+
+        const area = Math.round(((maxX - minX) / 100) * ((maxY - minY) / 100));
+        const roomCount = objects.filter(o => o.type === 'wall').length;
+
+        const template = {
+            id: this.generateId('template'),
+            name: name,
+            category: category,
+            area: area,
+            roomCount: Math.max(1, Math.floor(roomCount / 4)),
+            description: description,
+            isPreset: false,
+            thumbnail: null,
+            objects: objects,
+            createdAt: Date.now()
+        };
+
+        return template;
     }
 };

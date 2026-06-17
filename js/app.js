@@ -44,6 +44,10 @@ const App = {
             window.ComponentLibrary.init();
         }
 
+        if (window.TemplateLibraryUI) {
+            window.TemplateLibraryUI.init();
+        }
+
         this.setupEventListeners();
         this.setupToolButtons();
         this.setupExportButton();
