@@ -85,6 +85,77 @@
                 <span class="status-label">选中:</span>
                 <span class="status-value" id="selection-info">无</span>
             </div>
+            <div class="status-item color-status-item" id="color-status-item" style="display: none;">
+                <span class="status-label">颜色:</span>
+                <div class="color-preview" id="color-preview"></div>
+                <span class="status-value color-hex" id="color-hex-value">#ffffff</span>
+            </div>
+        </div>
+
+        <div class="color-panel" id="color-panel" style="display: none;">
+            <div class="color-panel-header">
+                <h4>家具颜色</h4>
+                <button class="color-panel-close" id="color-panel-close">&times;</button>
+            </div>
+            <div class="color-section">
+                <div class="color-section-title">常用色板</div>
+                <div class="color-preset-grid" id="color-preset-grid"></div>
+            </div>
+            <div class="color-section">
+                <div class="color-section-title">自定义颜色</div>
+                <div class="custom-color-row">
+                    <input type="color" id="custom-color-picker" value="#a8d8ea">
+                    <input type="text" id="custom-color-input" value="#a8d8ea" maxlength="7">
+                </div>
+            </div>
+            <div class="color-section">
+                <button class="batch-color-btn" id="batch-color-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <rect x="3" y="3" width="7" height="7"/>
+                        <rect x="14" y="3" width="7" height="7"/>
+                        <rect x="3" y="14" width="7" height="7"/>
+                        <rect x="14" y="14" width="7" height="7"/>
+                    </svg>
+                    批量修改同类型家具颜色
+                </button>
+            </div>
+        </div>
+
+        <div class="zoom-control">
+            <button class="zoom-btn" id="zoom-out" title="缩小">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+            </button>
+            <button class="zoom-percent-btn" id="zoom-percent" title="点击输入缩放比例">100%</button>
+            <button class="zoom-btn" id="zoom-in" title="放大">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+            </button>
+            <div class="zoom-divider"></div>
+            <button class="zoom-btn" id="zoom-reset" title="重置为100%">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12a9 9 0 1 0 9-9"/>
+                    <path d="M3 4v5h5"/>
+                </svg>
+            </button>
+            <button class="zoom-btn" id="zoom-fit" title="适应画布">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
+                    <path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+                    <path d="M3 16v3a2 2 0 0 0 2 2h3"/>
+                    <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="zoom-input-overlay" id="zoom-input-overlay" style="display: none;">
+            <div class="zoom-input-modal">
+                <input type="number" id="zoom-input-value" min="25" max="400" value="100">
+                <span class="zoom-input-suffix">%</span>
+            </div>
         </div>
 
         <button class="export-btn" id="export-btn" title="导出PNG">

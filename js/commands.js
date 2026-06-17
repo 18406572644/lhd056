@@ -93,6 +93,40 @@ class RotateObjectCommand extends Command {
     }
 }
 
+class ChangeColorCommand extends Command {
+    constructor(objectId, oldColor, newColor) {
+        super();
+        this.objectId = objectId;
+        this.oldColor = oldColor;
+        this.newColor = newColor;
+    }
+    execute() {
+        Store.updateObject(this.objectId, { color: this.newColor });
+    }
+    undo() {
+        Store.updateObject(this.objectId, { color: this.oldColor });
+    }
+}
+
+class BatchChangeColorCommand extends Command {
+    constructor(objectIds, oldColors, newColor) {
+        super();
+        this.objectIds = objectIds;
+        this.oldColors = oldColors;
+        this.newColor = newColor;
+    }
+    execute() {
+        this.objectIds.forEach(id => {
+            Store.updateObject(id, { color: this.newColor });
+        });
+    }
+    undo() {
+        this.objectIds.forEach((id, index) => {
+            Store.updateObject(id, { color: this.oldColors[index] });
+        });
+    }
+}
+
 class CompoundCommand extends Command {
     constructor(commands) {
         super();
