@@ -83,31 +83,51 @@ const SelectTool = {
         const obj = Store.getObject(Store.selection.objectId);
         if (obj && this.originalObject) {
             if (Store.selection.handleType === 'move') {
-                const dx = obj.x - this.originalObject.x;
-                const dy = obj.y - this.originalObject.y;
-                if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
-                    if (obj.type === 'furniture') {
-                        Snap.snapObjectToGrid(obj);
-                    }
-                    CommandManager.execute(new MoveObjectCommand(obj.id, dx, dy));
+                const currentX = obj.x;
+                const currentY = obj.y;
+
+                if (obj.type === 'furniture') {
+                    const gridSize = Store.canvas.gridSize;
+                    obj.x = Snap.snapToGrid(obj.x, gridSize);
+                    obj.y = Snap.snapToGrid(obj.y, gridSize);
+                }
+
+                const totalDx = obj.x - this.originalObject.x;
+                const totalDy = obj.y - this.originalObject.y;
+
+                if (Math.abs(totalDx) > 0.1 || Math.abs(totalDy) > 0.1) {
+                    obj.x = this.originalObject.x;
+                    obj.y = this.originalObject.y;
+                    CommandManager.execute(new MoveObjectCommand(obj.id, totalDx, totalDy));
                 }
             } else if (Store.selection.handleType === 'resize') {
                 if (this.originalWidth !== obj.width || this.originalHeight !== obj.height ||
                     this.originalX !== obj.x || this.originalY !== obj.y) {
-                    Snap.snapObjectToGrid(obj);
+                    const gridSize = Store.canvas.gridSize;
+                    const snappedWidth = Snap.snapToGrid(obj.width, gridSize);
+                    const snappedHeight = Snap.snapToGrid(obj.height, gridSize);
+                    const snappedX = Snap.snapToGrid(obj.x, gridSize);
+                    const snappedY = Snap.snapToGrid(obj.y, gridSize);
+
+                    obj.width = this.originalWidth;
+                    obj.height = this.originalHeight;
+                    obj.x = this.originalX;
+                    obj.y = this.originalY;
+
                     CommandManager.execute(new ResizeObjectCommand(
                         obj.id,
                         this.originalWidth, this.originalHeight,
-                        obj.width, obj.height,
+                        snappedWidth, snappedHeight,
                         this.originalX, this.originalY,
-                        obj.x, obj.y
+                        snappedX, snappedY
                     ));
                 }
             } else if (Store.selection.handleType === 'rotate') {
                 if (this.originalRotation !== obj.rotation) {
-                    obj.rotation = Snap.snapAngle(obj.rotation);
+                    const snappedRotation = Snap.snapAngle(obj.rotation);
+                    obj.rotation = this.originalRotation;
                     CommandManager.execute(new RotateObjectCommand(
-                        obj.id, this.originalRotation, obj.rotation
+                        obj.id, this.originalRotation, snappedRotation
                     ));
                 }
             }
@@ -128,7 +148,7 @@ const SelectTool = {
         let oppositeCorner;
 
         if (oppositeIndex % 2 === 1) {
-            const cornerIdx = Math.floor(oppositeIndex / 2);
+            const cornerIdx = Math.floor((oppositeIndex + 1) / 2) % 4;
             oppositeCorner = corners[cornerIdx];
         } else {
             const edgeStart = Math.floor(oppositeIndex / 2);

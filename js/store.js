@@ -2,7 +2,7 @@ const Store = {
     canvas: {
         width: window.innerWidth,
         height: window.innerHeight,
-        scale: 1,
+        scale: 2,
         offsetX: 0,
         offsetY: 0,
         gridSize: 10
