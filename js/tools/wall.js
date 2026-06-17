@@ -22,6 +22,7 @@ const WallTool = {
             x2: snapResult.x,
             y2: snapResult.y,
             thickness: 12,
+            wallHeight: Store.defaultWallHeight,
             _startSnapped: snapResult.snapped,
             _startSnapType: snapResult.snapType,
             _endSnapped: false,
@@ -68,6 +69,7 @@ const WallTool = {
                 x2: snapResult.x,
                 y2: snapResult.y,
                 thickness: 12,
+                wallHeight: Store.defaultWallHeight,
                 createdAt: Date.now()
             };
 

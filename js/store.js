@@ -8,6 +8,19 @@ const Store = {
         gridSize: 10
     },
 
+    is3DMode: false,
+
+    camera3D: {
+        angleX: -0.5,
+        angleY: Math.PI / 4,
+        distance: 800,
+        targetX: 0,
+        targetY: 100,
+        targetZ: 0
+    },
+
+    defaultWallHeight: 280,
+
     currentTool: 'select',
 
     selection: {
@@ -72,6 +85,9 @@ const Store = {
             }
         }
         this.objects.push(object);
+        if (typeof Renderer3D !== 'undefined' && this.is3DMode) {
+            Renderer3D.markForUpdate();
+        }
     },
 
     removeObject(objectId) {
@@ -88,6 +104,9 @@ const Store = {
         const index = this.objects.findIndex(o => o.id === objectId);
         if (index !== -1) {
             this.objects.splice(index, 1);
+        }
+        if (typeof Renderer3D !== 'undefined' && this.is3DMode) {
+            Renderer3D.markForUpdate();
         }
     },
 
@@ -123,6 +142,9 @@ const Store = {
         const obj = this.getObject(objectId);
         if (obj) {
             Object.assign(obj, updates);
+            if (typeof Renderer3D !== 'undefined' && this.is3DMode) {
+                Renderer3D.markForUpdate();
+            }
         }
     },
 
@@ -144,6 +166,9 @@ const Store = {
                 obj.y1 += dy;
                 obj.x2 += dx;
                 obj.y2 += dy;
+            }
+            if (typeof Renderer3D !== 'undefined' && this.is3DMode) {
+                Renderer3D.markForUpdate();
             }
         }
     },
@@ -288,6 +313,24 @@ const Store = {
         this.currentTool = tool;
         this.previewObject = null;
         this.dimensionStart = null;
+    },
+
+    toggle3DMode() {
+        this.is3DMode = !this.is3DMode;
+        if (typeof Renderer3D !== 'undefined') {
+            Renderer3D.markForUpdate();
+        }
+    },
+
+    set3DMode(enabled) {
+        this.is3DMode = enabled;
+        if (typeof Renderer3D !== 'undefined') {
+            Renderer3D.markForUpdate();
+        }
+    },
+
+    setCamera3D(camera) {
+        Object.assign(this.camera3D, camera);
     },
 
     setScale(scale) {

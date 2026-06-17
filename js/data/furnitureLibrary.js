@@ -5,6 +5,8 @@ const FurnitureLibrary = {
             name: '三人沙发',
             width: 220,
             height: 90,
+            depth: 90,
+            objectHeight: 85,
             color: '#a8d8ea',
             icon: 'sofa'
         },
@@ -13,6 +15,8 @@ const FurnitureLibrary = {
             name: '双人沙发',
             width: 160,
             height: 85,
+            depth: 85,
+            objectHeight: 85,
             color: '#aa96da',
             icon: 'sofa'
         },
@@ -21,6 +25,8 @@ const FurnitureLibrary = {
             name: '单人沙发',
             width: 90,
             height: 85,
+            depth: 85,
+            objectHeight: 85,
             color: '#fcbad3',
             icon: 'sofa'
         },
@@ -29,6 +35,8 @@ const FurnitureLibrary = {
             name: '茶几',
             width: 120,
             height: 60,
+            depth: 60,
+            objectHeight: 45,
             color: '#d5ecc2',
             icon: 'table'
         },
@@ -37,6 +45,8 @@ const FurnitureLibrary = {
             name: '电视柜',
             width: 180,
             height: 45,
+            depth: 45,
+            objectHeight: 50,
             color: '#ffd3b6',
             icon: 'tv'
         },
@@ -45,6 +55,8 @@ const FurnitureLibrary = {
             name: '书架',
             width: 120,
             height: 35,
+            depth: 35,
+            objectHeight: 200,
             color: '#c7ceea',
             icon: 'bookshelf'
         }
@@ -55,6 +67,8 @@ const FurnitureLibrary = {
             name: '双人床',
             width: 200,
             height: 180,
+            depth: 180,
+            objectHeight: 50,
             color: '#b8e0d2',
             icon: 'bed'
         },
@@ -63,6 +77,8 @@ const FurnitureLibrary = {
             name: '单人床',
             width: 120,
             height: 200,
+            depth: 200,
+            objectHeight: 50,
             color: '#d6e2f0',
             icon: 'bed'
         },
@@ -71,6 +87,8 @@ const FurnitureLibrary = {
             name: '衣柜',
             width: 180,
             height: 60,
+            depth: 60,
+            objectHeight: 240,
             color: '#e8d5b7',
             icon: 'wardrobe'
         },
@@ -79,6 +97,8 @@ const FurnitureLibrary = {
             name: '床头柜',
             width: 50,
             height: 45,
+            depth: 45,
+            objectHeight: 55,
             color: '#f0d9da',
             icon: 'nightstand'
         },
@@ -87,6 +107,8 @@ const FurnitureLibrary = {
             name: '书桌',
             width: 140,
             height: 70,
+            depth: 70,
+            objectHeight: 75,
             color: '#c9d8c5',
             icon: 'desk'
         }
@@ -97,6 +119,8 @@ const FurnitureLibrary = {
             name: '冰箱',
             width: 70,
             height: 70,
+            depth: 70,
+            objectHeight: 180,
             color: '#e6f3ff',
             icon: 'fridge'
         },
@@ -105,6 +129,8 @@ const FurnitureLibrary = {
             name: '灶台',
             width: 80,
             height: 60,
+            depth: 60,
+            objectHeight: 85,
             color: '#f5e6d3',
             icon: 'stove'
         },
@@ -113,6 +139,8 @@ const FurnitureLibrary = {
             name: '水槽',
             width: 80,
             height: 55,
+            depth: 55,
+            objectHeight: 85,
             color: '#d0e8f2',
             icon: 'sink'
         },
@@ -121,6 +149,8 @@ const FurnitureLibrary = {
             name: '餐桌',
             width: 160,
             height: 90,
+            depth: 90,
+            objectHeight: 75,
             color: '#e8d5c4',
             icon: 'table'
         }
@@ -131,6 +161,8 @@ const FurnitureLibrary = {
             name: '马桶',
             width: 45,
             height: 65,
+            depth: 65,
+            objectHeight: 70,
             color: '#f0f8ff',
             icon: 'toilet'
         },
@@ -139,6 +171,8 @@ const FurnitureLibrary = {
             name: '浴缸',
             width: 170,
             height: 80,
+            depth: 80,
+            objectHeight: 60,
             color: '#e6f7ff',
             icon: 'bathtub'
         },
@@ -147,6 +181,8 @@ const FurnitureLibrary = {
             name: '洗手台',
             width: 80,
             height: 50,
+            depth: 50,
+            objectHeight: 85,
             color: '#f0f0f0',
             icon: 'sink'
         },
@@ -155,6 +191,8 @@ const FurnitureLibrary = {
             name: '淋浴房',
             width: 100,
             height: 100,
+            depth: 100,
+            objectHeight: 220,
             color: '#e0f7fa',
             icon: 'shower'
         }

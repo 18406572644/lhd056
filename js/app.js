@@ -33,7 +33,8 @@ const App = {
             walls: WallRenderer,
             furniture: FurnitureRenderer,
             annotations: AnnotationRenderer,
-            ui: UIRenderer
+            ui: UIRenderer,
+            renderer3D: Renderer3D
         };
 
         Object.values(this.renderers).forEach(r => r.init());
@@ -54,6 +55,9 @@ const App = {
         this.setupColorPanel();
         this.setupZoomControl();
         this.setupPanelTabs();
+        this.setupViewToggle();
+        this.setup3DExportButton();
+        this.setupPropertiesPanel();
 
         this.renderLoop();
     },
@@ -756,15 +760,212 @@ const App = {
         zoomLevel.textContent = percent;
     },
 
+    setupViewToggle() {
+        const view2DBtn = document.getElementById('view-2d-btn');
+        const view3DBtn = document.getElementById('view-3d-btn');
+        const canvas3D = document.getElementById('canvas-3d');
+        const export3DBtn = document.getElementById('export-3d-btn');
+
+        view2DBtn.classList.add('active');
+
+        view2DBtn.addEventListener('click', () => {
+            Store.set3DMode(false);
+            view2DBtn.classList.add('active');
+            view3DBtn.classList.remove('active');
+            canvas3D.classList.remove('active');
+            export3DBtn.style.display = 'none';
+        });
+
+        view3DBtn.addEventListener('click', () => {
+            Store.set3DMode(true);
+            view3DBtn.classList.add('active');
+            view2DBtn.classList.remove('active');
+            canvas3D.classList.add('active');
+            export3DBtn.style.display = 'flex';
+            this.renderers.renderer3D.resize();
+        });
+    },
+
+    setup3DExportButton() {
+        const export3DBtn = document.getElementById('export-3d-btn');
+        export3DBtn.addEventListener('click', () => {
+            const dataURL = this.renderers.renderer3D.exportToImage();
+            const link = document.createElement('a');
+            link.download = `3d-view-${Date.now()}.png`;
+            link.href = dataURL;
+            link.click();
+        });
+    },
+
+    setupPropertiesPanel() {
+        const panel = document.getElementById('properties-panel');
+        if (!panel) return;
+    },
+
+    lastSelectedObjectId: null,
+    lastSelectedObjectType: null,
+
+    updatePropertiesPanel() {
+        const panel = document.getElementById('properties-panel');
+        if (!panel) return;
+
+        const selectedObj = Store.selection.objectId ? Store.getObject(Store.selection.objectId) : null;
+
+        const objId = selectedObj ? selectedObj.id : null;
+        const objType = selectedObj ? selectedObj.type : null;
+
+        if (objId !== this.lastSelectedObjectId || objType !== this.lastSelectedObjectType) {
+            this.lastSelectedObjectId = objId;
+            this.lastSelectedObjectType = objType;
+
+            if (!selectedObj) {
+                panel.classList.remove('active');
+                return;
+            }
+
+            if (selectedObj.type === 'wall' || selectedObj.type === 'furniture') {
+                panel.classList.add('active');
+                this.renderPropertiesPanelContent(selectedObj);
+            } else {
+                panel.classList.remove('active');
+            }
+        }
+    },
+
+    renderPropertiesPanelContent(obj) {
+        const content = document.getElementById('properties-panel-content');
+        if (!content) return;
+
+        let html = '';
+
+        if (obj.type === 'wall') {
+            html = `
+                <div class="property-group">
+                    <div class="property-group-title">墙体属性</div>
+                    <div class="property-item">
+                        <span class="property-label">墙体高度</span>
+                        <div style="display: flex; align-items: center;">
+                            <input type="number" class="property-input" id="prop-wall-height" 
+                                   value="${obj.wallHeight || Store.defaultWallHeight}" min="100" max="500" step="10">
+                            <span class="property-unit">cm</span>
+                        </div>
+                    </div>
+                    <div class="property-item">
+                        <span class="property-label">墙体厚度</span>
+                        <div style="display: flex; align-items: center;">
+                            <input type="number" class="property-input" id="prop-wall-thickness" 
+                                   value="${obj.thickness || 12}" min="5" max="50" step="1">
+                            <span class="property-unit">cm</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (obj.type === 'furniture') {
+            html = `
+                <div class="property-group">
+                    <div class="property-group-title">家具属性</div>
+                    <div class="property-item">
+                        <span class="property-label">高度</span>
+                        <div style="display: flex; align-items: center;">
+                            <input type="number" class="property-input" id="prop-furniture-height" 
+                                   value="${obj.objectHeight || 50}" min="10" max="300" step="5">
+                            <span class="property-unit">cm</span>
+                        </div>
+                    </div>
+                    <div class="property-item">
+                        <span class="property-label">宽度</span>
+                        <div style="display: flex; align-items: center;">
+                            <input type="number" class="property-input" id="prop-furniture-width" 
+                                   value="${obj.width}" min="10" max="500" step="5">
+                            <span class="property-unit">cm</span>
+                        </div>
+                    </div>
+                    <div class="property-item">
+                        <span class="property-label">深度</span>
+                        <div style="display: flex; align-items: center;">
+                            <input type="number" class="property-input" id="prop-furniture-depth" 
+                                   value="${obj.depth || obj.height}" min="10" max="500" step="5">
+                            <span class="property-unit">cm</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        content.innerHTML = html;
+        this.bindPropertyInputs(obj);
+    },
+
+    bindPropertyInputs(obj) {
+        if (obj.type === 'wall') {
+            const heightInput = document.getElementById('prop-wall-height');
+            const thicknessInput = document.getElementById('prop-wall-thickness');
+
+            if (heightInput) {
+                heightInput.addEventListener('change', (e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value) && value > 0) {
+                        Store.updateObject(obj.id, { wallHeight: value });
+                    }
+                });
+            }
+
+            if (thicknessInput) {
+                thicknessInput.addEventListener('change', (e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value) && value > 0) {
+                        Store.updateObject(obj.id, { thickness: value });
+                    }
+                });
+            }
+        } else if (obj.type === 'furniture') {
+            const heightInput = document.getElementById('prop-furniture-height');
+            const widthInput = document.getElementById('prop-furniture-width');
+            const depthInput = document.getElementById('prop-furniture-depth');
+
+            if (heightInput) {
+                heightInput.addEventListener('change', (e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value) && value > 0) {
+                        Store.updateObject(obj.id, { objectHeight: value });
+                    }
+                });
+            }
+
+            if (widthInput) {
+                widthInput.addEventListener('change', (e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value) && value > 0) {
+                        Store.updateObject(obj.id, { width: value });
+                    }
+                });
+            }
+
+            if (depthInput) {
+                depthInput.addEventListener('change', (e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value) && value > 0) {
+                        Store.updateObject(obj.id, { depth: value });
+                    }
+                });
+            }
+        }
+    },
+
     renderLoop() {
-        this.renderers.grid.render();
-        this.renderers.walls.render();
-        this.renderers.furniture.render();
-        this.renderers.annotations.render();
-        this.renderers.ui.render();
+        if (Store.is3DMode) {
+            this.renderers.renderer3D.render();
+        } else {
+            this.renderers.grid.render();
+            this.renderers.walls.render();
+            this.renderers.furniture.render();
+            this.renderers.annotations.render();
+            this.renderers.ui.render();
+        }
 
         this.updateColorStatus();
         this.updateZoomPercent();
+        this.updatePropertiesPanel();
 
         requestAnimationFrame(() => this.renderLoop());
     }
