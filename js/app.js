@@ -1020,8 +1020,7 @@ const App = {
             if (this.currentMaterialCategory === 'custom') {
                 return m.isCustom;
             }
-            return m.type === this.currentMaterialCategory || 
-                   (this.currentMaterialCategory === 'floor' && m.type === 'floor');
+            return m.type === this.currentMaterialCategory && !m.isCustom;
         });
 
         if (categoryMaterials.length === 0) {
@@ -1222,13 +1221,26 @@ const App = {
         const file = e.target.files[0];
         if (!file) return;
 
+        if (!file.type.startsWith('image/')) {
+            this.showToast('请上传图片文件（支持 JPG、PNG、WebP 格式）', 'error');
+            e.target.value = '';
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            this.showToast('图片文件大小不能超过 5MB', 'error');
+            e.target.value = '';
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = (event) => {
             const imageData = event.target.result;
-            
+
+            const fileName = file.name.replace(/\.[^/.]+$/, '');
             const material = {
                 id: 'custom_' + Date.now(),
-                name: '自定义材质',
+                name: fileName.length > 6 ? fileName.substring(0, 6) + '...' : fileName,
                 type: 'custom',
                 isCustom: true,
                 imageData: imageData,
@@ -1238,17 +1250,60 @@ const App = {
             };
 
             MaterialLibrary.addCustomMaterial(material);
-            MaterialRenderer.clearCache();
+            MaterialLibrary.loadCustomTexture(material).then(() => {
+                if (typeof MaterialRenderer !== 'undefined') {
+                    MaterialRenderer.clearCache();
+                }
 
-            const selectedObj = Store.selection.objectId ? Store.getObject(Store.selection.objectId) : null;
-            if (selectedObj) {
-                this.currentMaterialCategory = 'custom';
-                this.renderMaterialTab(selectedObj);
-            }
+                this.showToast('纹理上传成功！', 'success');
+
+                const selectedObj = Store.selection.objectId ? Store.getObject(Store.selection.objectId) : null;
+                if (selectedObj) {
+                    this.currentMaterialCategory = 'custom';
+                    this.renderMaterialTab(selectedObj);
+                }
+            });
         };
+
+        reader.onerror = () => {
+            this.showToast('文件读取失败，请重试', 'error');
+        };
+
         reader.readAsDataURL(file);
-        
         e.target.value = '';
+    },
+
+    showToast(message, type = 'success') {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+
+        const icon = type === 'success'
+            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+
+        toast.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-message">${message}</span>`;
+        container.appendChild(toast);
+
+        requestAnimationFrame(() => {
+            toast.classList.add('toast-show');
+        });
+
+        setTimeout(() => {
+            toast.classList.remove('toast-show');
+            toast.classList.add('toast-hide');
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
     },
 
     renderLoop() {

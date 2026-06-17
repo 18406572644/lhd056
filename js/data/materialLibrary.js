@@ -241,12 +241,32 @@ const MaterialLibrary = {
     },
 
     getApplicableMaterials(objectType) {
+        const materials = [];
         if (objectType === 'wall') {
-            return this.getMaterialsByType('wall');
+            Object.values(this.categories).forEach(cat => {
+                cat.materials.forEach(m => {
+                    if (m.type === 'wall') {
+                        materials.push(m);
+                    }
+                });
+            });
         } else if (objectType === 'furniture' || objectType === 'room') {
-            return this.getMaterialsByType('floor');
+            Object.values(this.categories).forEach(cat => {
+                cat.materials.forEach(m => {
+                    if (m.type === 'floor') {
+                        materials.push(m);
+                    }
+                });
+            });
+        } else {
+            Object.values(this.categories).forEach(cat => {
+                materials.push(...cat.materials);
+            });
         }
-        return this.getAllMaterials();
+        this.customMaterials.forEach(m => {
+            materials.push(m);
+        });
+        return materials;
     },
 
     generateTextureCanvas(material, size = 256) {

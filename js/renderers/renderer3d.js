@@ -164,11 +164,11 @@ const Renderer3D = {
     },
 
     getWallHash(wall) {
-        return `${wall.x1}_${wall.y1}_${wall.x2}_${wall.y2}_${wall.thickness}_${wall.wallHeight || Store.defaultWallHeight}`;
+        return `${wall.x1}_${wall.y1}_${wall.x2}_${wall.y2}_${wall.thickness}_${wall.wallHeight || Store.defaultWallHeight}_${wall.materialId || ''}_${wall.materialScale || ''}_${wall.materialRotation || ''}_${wall.materialOpacity || ''}`;
     },
 
     getFurnitureHash(furniture) {
-        return `${furniture.x}_${furniture.y}_${furniture.width}_${furniture.depth || furniture.height}_${furniture.objectHeight || 50}_${furniture.rotation || 0}_${furniture.color}`;
+        return `${furniture.x}_${furniture.y}_${furniture.width}_${furniture.depth || furniture.height}_${furniture.objectHeight || 50}_${furniture.rotation || 0}_${furniture.color}_${furniture.materialId || ''}_${furniture.materialScale || ''}_${furniture.materialRotation || ''}_${furniture.materialOpacity || ''}`;
     },
 
     updateWallMesh(wall) {
@@ -180,6 +180,13 @@ const Renderer3D = {
         }
 
         if (existing) {
+            if (existing.material && existing.material.map) {
+                existing.material.map.dispose();
+            }
+            if (existing.material) {
+                existing.material.dispose();
+            }
+            existing.geometry.dispose();
             this.scene.remove(existing);
         }
 
@@ -188,6 +195,56 @@ const Renderer3D = {
             mesh.userData.hash = hash;
             this.wallMeshes.set(wall.id, mesh);
         }
+    },
+
+    createThreeMaterial(materialId, materialScale, materialRotation, materialOpacity, fallbackColor) {
+        const opacity = materialOpacity !== undefined ? materialOpacity : 1;
+
+        if (!materialId || typeof MaterialLibrary === 'undefined') {
+            return new THREE.MeshStandardMaterial({
+                color: fallbackColor,
+                roughness: 0.7,
+                metalness: 0.1,
+                transparent: opacity < 1,
+                opacity: opacity
+            });
+        }
+
+        const matDef = MaterialLibrary.getMaterialById(materialId);
+        if (!matDef) {
+            return new THREE.MeshStandardMaterial({
+                color: fallbackColor,
+                roughness: 0.7,
+                metalness: 0.1,
+                transparent: opacity < 1,
+                opacity: opacity
+            });
+        }
+
+        const textureCanvas = MaterialLibrary.generateTextureCanvas(matDef, 256);
+        const texture = new THREE.CanvasTexture(textureCanvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+
+        const scale = materialScale || 1;
+        const repeatCount = Math.max(1, scale * 2);
+        texture.repeat.set(repeatCount, repeatCount);
+
+        if (materialRotation) {
+            texture.rotation = materialRotation * Math.PI / 180;
+            texture.center.set(0.5, 0.5);
+        }
+
+        const threeColor = new THREE.Color(matDef.color);
+
+        return new THREE.MeshStandardMaterial({
+            map: texture,
+            color: threeColor,
+            roughness: 0.7,
+            metalness: 0.1,
+            transparent: opacity < 1,
+            opacity: opacity
+        });
     },
 
     createWallMesh(wall) {
@@ -207,11 +264,13 @@ const Renderer3D = {
         const geometry = new THREE.BoxGeometry(length, height, thickness);
 
         const wallColor = 0x5a5a6a;
-        const material = new THREE.MeshStandardMaterial({
-            color: wallColor,
-            roughness: 0.7,
-            metalness: 0.1
-        });
+        const material = this.createThreeMaterial(
+            wall.materialId,
+            wall.materialScale,
+            wall.materialRotation,
+            wall.materialOpacity,
+            wallColor
+        );
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.castShadow = true;
@@ -239,6 +298,13 @@ const Renderer3D = {
         }
 
         if (existing) {
+            if (existing.material && existing.material.map) {
+                existing.material.map.dispose();
+            }
+            if (existing.material) {
+                existing.material.dispose();
+            }
+            existing.geometry.dispose();
             this.scene.remove(existing);
         }
 
@@ -261,11 +327,13 @@ const Renderer3D = {
             color = parseInt(furniture.color.replace('#', '0x'));
         }
 
-        const material = new THREE.MeshStandardMaterial({
-            color: color,
-            roughness: 0.6,
-            metalness: 0.1
-        });
+        const material = this.createThreeMaterial(
+            furniture.materialId,
+            furniture.materialScale,
+            furniture.materialRotation,
+            furniture.materialOpacity,
+            color
+        );
 
         const mesh = new THREE.Mesh(geometry, material);
         mesh.castShadow = true;
