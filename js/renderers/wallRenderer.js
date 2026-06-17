@@ -17,11 +17,17 @@ const WallRenderer = {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        Store.objects.forEach(obj => {
-            if (obj.type === 'wall') {
-                this.drawWall(ctx, obj);
-            }
-        });
+        const drawWalls = (objects) => {
+            objects.forEach(obj => {
+                if (obj.type === 'wall') {
+                    this.drawWall(ctx, obj);
+                } else if (obj.type === 'group' && obj.children) {
+                    drawWalls(obj.children);
+                }
+            });
+        };
+
+        drawWalls(Store.objects);
 
         if (Store.previewObject && Store.previewObject.type === 'wall') {
             this.drawWall(ctx, Store.previewObject, true);

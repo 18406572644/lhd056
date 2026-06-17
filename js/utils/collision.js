@@ -37,8 +37,9 @@ const Collision = {
     },
 
     findObjectAtPoint(x, y) {
-        for (let i = Store.objects.length - 1; i >= 0; i--) {
-            const obj = Store.objects[i];
+        const objects = Store.getCurrentObjects();
+        for (let i = objects.length - 1; i >= 0; i--) {
+            const obj = objects[i];
             if (this.hitTestObject(x, y, obj)) {
                 return obj;
             }
@@ -47,6 +48,19 @@ const Collision = {
     },
 
     hitTestObject(x, y, obj) {
+        if (obj.type === 'group') {
+            if (obj.width && obj.height) {
+                return this.pointInRect(x, y, obj);
+            }
+            if (obj.children) {
+                for (let i = obj.children.length - 1; i >= 0; i--) {
+                    if (this.hitTestObject(x, y, obj.children[i])) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
         if (obj.type === 'furniture' || obj.type === 'text') {
             return this.pointInRect(x, y, obj);
         } else if (obj.type === 'wall') {
@@ -55,6 +69,45 @@ const Collision = {
             return this.pointNearWall(x, y, obj, 10);
         }
         return false;
+    },
+
+    findObjectsInRect(x1, y1, x2, y2) {
+        const results = [];
+        const minX = Math.min(x1, x2);
+        const maxX = Math.max(x1, x2);
+        const minY = Math.min(y1, y2);
+        const maxY = Math.max(y1, y2);
+
+        const objects = Store.getCurrentObjects();
+
+        const testObject = (obj) => {
+            if (obj.type === 'furniture' || obj.type === 'text') {
+                const corners = Coordinates.getObjectCorners(obj);
+                return corners.some(c => 
+                    c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY
+                );
+            } else if (obj.type === 'wall' || obj.type === 'dimension') {
+                const inRange1 = obj.x1 >= minX && obj.x1 <= maxX && obj.y1 >= minY && obj.y1 <= maxY;
+                const inRange2 = obj.x2 >= minX && obj.x2 <= maxX && obj.y2 >= minY && obj.y2 <= maxY;
+                return inRange1 || inRange2;
+            } else if (obj.type === 'group') {
+                if (obj.x && obj.y && obj.width && obj.height) {
+                    const hw = obj.width / 2;
+                    const hh = obj.height / 2;
+                    return obj.x - hw <= maxX && obj.x + hw >= minX &&
+                           obj.y - hh <= maxY && obj.y + hh >= minY;
+                }
+            }
+            return false;
+        };
+
+        objects.forEach(obj => {
+            if (testObject(obj)) {
+                results.push(obj);
+            }
+        });
+
+        return results;
     },
 
     getResizeHandlePosition(obj, handleIndex) {

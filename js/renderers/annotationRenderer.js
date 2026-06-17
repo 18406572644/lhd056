@@ -17,13 +17,19 @@ const AnnotationRenderer = {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        Store.objects.forEach(obj => {
-            if (obj.type === 'dimension') {
-                this.drawDimension(ctx, obj);
-            } else if (obj.type === 'text') {
-                this.drawText(ctx, obj);
-            }
-        });
+        const drawAnnotations = (objects) => {
+            objects.forEach(obj => {
+                if (obj.type === 'dimension') {
+                    this.drawDimension(ctx, obj);
+                } else if (obj.type === 'text') {
+                    this.drawText(ctx, obj);
+                } else if (obj.type === 'group' && obj.children) {
+                    drawAnnotations(obj.children);
+                }
+            });
+        };
+
+        drawAnnotations(Store.objects);
 
         if (Store.dimensionStart && Store.previewObject && Store.previewObject.type === 'dimension') {
             this.drawDimension(ctx, Store.previewObject, true);

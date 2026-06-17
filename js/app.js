@@ -40,11 +40,16 @@ const App = {
 
         this.tools.furniture.init();
 
+        if (window.ComponentLibrary) {
+            window.ComponentLibrary.init();
+        }
+
         this.setupEventListeners();
         this.setupToolButtons();
         this.setupExportButton();
         this.setupColorPanel();
         this.setupZoomControl();
+        this.setupPanelTabs();
 
         this.renderLoop();
     },
@@ -56,6 +61,7 @@ const App = {
         canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
         canvas.addEventListener('mouseleave', (e) => this.handleMouseUp(e));
+        canvas.addEventListener('contextmenu', (e) => this.handleContextMenu(e));
 
         canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
         canvas.addEventListener('mousedown', (e) => this.handleMiddleMouseDown(e), true);
@@ -63,7 +69,22 @@ const App = {
         document.addEventListener('keydown', (e) => this.handleKeyDown(e));
         document.addEventListener('keyup', (e) => this.handleKeyUp(e));
 
+        document.addEventListener('click', (e) => this.handleDocumentClick(e));
+
         window.addEventListener('resize', () => this.handleResize());
+    },
+
+    handleContextMenu(e) {
+        const tool = this.tools[Store.currentTool];
+        if (tool && tool.handleContextMenu) {
+            tool.handleContextMenu(e);
+        }
+    },
+
+    handleDocumentClick(e) {
+        if (SelectTool && SelectTool.hideContextMenu) {
+            SelectTool.hideContextMenu();
+        }
     },
 
     setupToolButtons() {
@@ -79,6 +100,22 @@ const App = {
         const exportBtn = document.getElementById('export-btn');
         exportBtn.addEventListener('click', () => {
             ExportUtils.exportToPNG();
+        });
+    },
+
+    setupPanelTabs() {
+        document.querySelectorAll('.panel-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const panelName = e.target.dataset.panel;
+                
+                document.querySelectorAll('.panel-tab').forEach(t => {
+                    t.classList.toggle('active', t.dataset.panel === panelName);
+                });
+                
+                document.querySelectorAll('.panel-content').forEach(p => {
+                    p.classList.toggle('active', p.id === `panel-${panelName}`);
+                });
+            });
         });
     },
 
@@ -247,7 +284,9 @@ const App = {
         zoomEl.textContent = `${Math.round(Store.canvas.scale * 100)}%`;
 
         const selEl = document.getElementById('selection-info');
-        if (Store.selection.objectId) {
+        if (Store.selection.objectIds && Store.selection.objectIds.length > 1) {
+            selEl.textContent = `已选中 ${Store.selection.objectIds.length} 个对象`;
+        } else if (Store.selection.objectId) {
             const obj = Store.getObject(Store.selection.objectId);
             if (obj) {
                 selEl.textContent = this.getSelectionInfo(obj);
@@ -264,12 +303,16 @@ const App = {
             wall: '墙壁',
             furniture: '家具',
             dimension: '尺寸',
-            text: '文字'
+            text: '文字',
+            group: '组合'
         };
 
         const typeName = typeNames[obj.type] || obj.type;
 
-        if (obj.type === 'wall') {
+        if (obj.type === 'group') {
+            const childCount = obj.children ? obj.children.length : 0;
+            return `${typeName} | ${childCount}个子对象 | ${Coordinates.formatDimension(obj.width)} × ${Coordinates.formatDimension(obj.height)}`;
+        } else if (obj.type === 'wall') {
             const len = Math.sqrt(
                 Math.pow(obj.x2 - obj.x1, 2) + Math.pow(obj.y2 - obj.y1, 2)
             );

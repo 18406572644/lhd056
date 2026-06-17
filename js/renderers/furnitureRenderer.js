@@ -17,11 +17,17 @@ const FurnitureRenderer = {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        Store.objects.forEach(obj => {
-            if (obj.type === 'furniture') {
-                this.drawFurniture(ctx, obj);
-            }
-        });
+        const drawObjects = (objects) => {
+            objects.forEach(obj => {
+                if (obj.type === 'furniture') {
+                    this.drawFurniture(ctx, obj);
+                } else if (obj.type === 'group' && obj.children) {
+                    drawObjects(obj.children);
+                }
+            });
+        };
+
+        drawObjects(Store.objects);
 
         if (Store.dragState.tempObject && Store.dragState.tempObject.type === 'furniture') {
             this.drawFurniture(ctx, Store.dragState.tempObject, true);

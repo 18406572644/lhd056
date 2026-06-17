@@ -11,9 +11,9 @@ const FurnitureTool = {
         const list = document.getElementById('furniture-list');
         this.renderCategory('living');
 
-        document.querySelectorAll('.tab-btn').forEach(btn => {
+        document.querySelectorAll('#furniture-category-tabs .tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('#furniture-category-tabs .tab-btn').forEach(b => b.classList.remove('active'));
                 e.target.classList.add('active');
                 const category = e.target.dataset.category;
                 this.renderCategory(category);

@@ -59,16 +59,33 @@
         </div>
 
         <div class="furniture-panel">
-            <div class="furniture-header">
-                <h3>家具库</h3>
+            <div class="panel-tabs">
+                <div class="panel-tab active" data-panel="furniture">家具库</div>
+                <div class="panel-tab" data-panel="components">我的组件</div>
             </div>
-            <div class="category-tabs">
-                <div class="tab-btn active" data-category="living">客厅</div>
-                <div class="tab-btn" data-category="bedroom">卧室</div>
-                <div class="tab-btn" data-category="kitchen">厨房</div>
-                <div class="tab-btn" data-category="bathroom">卫浴</div>
+
+            <div class="panel-content active" id="panel-furniture">
+                <div class="furniture-header">
+                    <h3>家具库</h3>
+                </div>
+                <div class="category-tabs" id="furniture-category-tabs">
+                    <div class="tab-btn active" data-category="living">客厅</div>
+                    <div class="tab-btn" data-category="bedroom">卧室</div>
+                    <div class="tab-btn" data-category="kitchen">厨房</div>
+                    <div class="tab-btn" data-category="bathroom">卫浴</div>
+                </div>
+                <div class="furniture-list" id="furniture-list">
+                </div>
             </div>
-            <div class="furniture-list" id="furniture-list">
+
+            <div class="panel-content" id="panel-components">
+                <div class="furniture-header">
+                    <h3>我的组件</h3>
+                </div>
+                <div class="category-tabs" id="component-category-tabs">
+                </div>
+                <div class="furniture-list" id="component-list">
+                </div>
             </div>
         </div>
 
@@ -184,6 +201,7 @@
     <script src="js/tools/furniture.js"></script>
     <script src="js/tools/dimension.js"></script>
     <script src="js/tools/text.js"></script>
+    <script src="js/tools/componentLibrary.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

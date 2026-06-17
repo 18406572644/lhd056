@@ -11,6 +11,7 @@ const Store = {
     currentTool: 'select',
 
     selection: {
+        objectIds: [],
         objectId: null,
         type: null,
         handleType: null,
@@ -22,7 +23,8 @@ const Store = {
         startX: 0,
         startY: 0,
         startObject: null,
-        tempObject: null
+        tempObject: null,
+        startObjects: []
     },
 
     panState: {
@@ -39,9 +41,17 @@ const Store = {
 
     dimensionStart: null,
 
+    groupEditPath: [],
+
+    componentLibrary: {
+        categories: ['常用', '客厅', '卧室', '厨房', '卫浴'],
+        components: []
+    },
+
     init() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
+        this.loadComponentLibrary();
     },
 
     generateId(prefix) {
@@ -49,10 +59,27 @@ const Store = {
     },
 
     addObject(object) {
+        if (this.groupEditPath.length > 0) {
+            const parentGroup = this.getCurrentGroup();
+            if (parentGroup) {
+                parentGroup.children.push(object);
+                return;
+            }
+        }
         this.objects.push(object);
     },
 
     removeObject(objectId) {
+        if (this.groupEditPath.length > 0) {
+            const parentGroup = this.getCurrentGroup();
+            if (parentGroup) {
+                const index = parentGroup.children.findIndex(o => o.id === objectId);
+                if (index !== -1) {
+                    parentGroup.children.splice(index, 1);
+                }
+                return;
+            }
+        }
         const index = this.objects.findIndex(o => o.id === objectId);
         if (index !== -1) {
             this.objects.splice(index, 1);
@@ -60,7 +87,31 @@ const Store = {
     },
 
     getObject(objectId) {
-        return this.objects.find(o => o.id === objectId);
+        const findInList = (list) => {
+            for (const obj of list) {
+                if (obj.id === objectId) return obj;
+                if (obj.type === 'group' && obj.children) {
+                    const found = findInList(obj.children);
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+        return findInList(this.objects);
+    },
+
+    getObjectParent(objectId) {
+        const findParent = (list, parent = null) => {
+            for (const obj of list) {
+                if (obj.id === objectId) return parent;
+                if (obj.type === 'group' && obj.children) {
+                    const found = findParent(obj.children, obj);
+                    if (found !== undefined) return found;
+                }
+            }
+            return undefined;
+        };
+        return findParent(this.objects);
     },
 
     updateObject(objectId, updates) {
@@ -73,7 +124,9 @@ const Store = {
     moveObject(objectId, dx, dy) {
         const obj = this.getObject(objectId);
         if (obj) {
-            if (obj.type === 'furniture' || obj.type === 'text') {
+            if (obj.type === 'group') {
+                this.moveGroup(obj, dx, dy);
+            } else if (obj.type === 'furniture' || obj.type === 'text') {
                 obj.x += dx;
                 obj.y += dy;
             } else if (obj.type === 'wall') {
@@ -90,7 +143,35 @@ const Store = {
         }
     },
 
+    moveGroup(group, dx, dy) {
+        if (group.children) {
+            group.children.forEach(child => {
+                if (child.type === 'group') {
+                    this.moveGroup(child, dx, dy);
+                } else if (child.type === 'furniture' || child.type === 'text') {
+                    child.x += dx;
+                    child.y += dy;
+                } else if (child.type === 'wall') {
+                    child.x1 += dx;
+                    child.y1 += dy;
+                    child.x2 += dx;
+                    child.y2 += dy;
+                } else if (child.type === 'dimension') {
+                    child.x1 += dx;
+                    child.y1 += dy;
+                    child.x2 += dx;
+                    child.y2 += dy;
+                }
+            });
+        }
+        if (group.x !== undefined) {
+            group.x += dx;
+            group.y += dy;
+        }
+    },
+
     clearSelection() {
+        this.selection.objectIds = [];
         this.selection.objectId = null;
         this.selection.type = null;
         this.selection.handleType = null;
@@ -98,8 +179,41 @@ const Store = {
     },
 
     selectObject(objectId, type) {
+        this.selection.objectIds = [objectId];
         this.selection.objectId = objectId;
         this.selection.type = type;
+    },
+
+    toggleSelection(objectId, type) {
+        const index = this.selection.objectIds.indexOf(objectId);
+        if (index === -1) {
+            this.selection.objectIds.push(objectId);
+        } else {
+            this.selection.objectIds.splice(index, 1);
+        }
+        if (this.selection.objectIds.length > 0) {
+            this.selection.objectId = this.selection.objectIds[this.selection.objectIds.length - 1];
+            this.selection.type = type;
+        } else {
+            this.selection.objectId = null;
+            this.selection.type = null;
+        }
+    },
+
+    setSelection(objectIds) {
+        this.selection.objectIds = [...objectIds];
+        if (objectIds.length > 0) {
+            this.selection.objectId = objectIds[objectIds.length - 1];
+            const obj = this.getObject(objectIds[objectIds.length - 1]);
+            this.selection.type = obj ? obj.type : null;
+        } else {
+            this.selection.objectId = null;
+            this.selection.type = null;
+        }
+    },
+
+    isSelected(objectId) {
+        return this.selection.objectIds.includes(objectId);
     },
 
     setTool(tool) {
@@ -115,5 +229,147 @@ const Store = {
     setOffset(x, y) {
         this.canvas.offsetX = x;
         this.canvas.offsetY = y;
+    },
+
+    getGroupBounds(group) {
+        let minX = Infinity, minY = Infinity;
+        let maxX = -Infinity, maxY = -Infinity;
+
+        const processObject = (obj) => {
+            if (obj.type === 'group') {
+                if (obj.children) {
+                    obj.children.forEach(processObject);
+                }
+            } else if (obj.type === 'furniture' || obj.type === 'text') {
+                const corners = Coordinates.getObjectCorners(obj);
+                corners.forEach(c => {
+                    minX = Math.min(minX, c.x);
+                    minY = Math.min(minY, c.y);
+                    maxX = Math.max(maxX, c.x);
+                    maxY = Math.max(maxY, c.y);
+                });
+            } else if (obj.type === 'wall') {
+                minX = Math.min(minX, obj.x1, obj.x2);
+                minY = Math.min(minY, obj.y1, obj.y2);
+                maxX = Math.max(maxX, obj.x1, obj.x2);
+                maxY = Math.max(maxY, obj.y1, obj.y2);
+            } else if (obj.type === 'dimension') {
+                minX = Math.min(minX, obj.x1, obj.x2);
+                minY = Math.min(minY, obj.y1, obj.y2);
+                maxX = Math.max(maxX, obj.x1, obj.x2);
+                maxY = Math.max(maxY, obj.y1, obj.y2);
+            }
+        };
+
+        if (group.children) {
+            group.children.forEach(processObject);
+        }
+
+        if (minX === Infinity) return null;
+
+        return {
+            x: (minX + maxX) / 2,
+            y: (minY + maxY) / 2,
+            width: maxX - minX,
+            height: maxY - minY,
+            minX, minY, maxX, maxY
+        };
+    },
+
+    updateGroupBounds(group) {
+        const bounds = this.getGroupBounds(group);
+        if (bounds) {
+            group.x = bounds.x;
+            group.y = bounds.y;
+            group.width = bounds.width;
+            group.height = bounds.height;
+        }
+    },
+
+    getCurrentObjects() {
+        if (this.groupEditPath.length === 0) {
+            return this.objects;
+        }
+        const currentGroup = this.getCurrentGroup();
+        return currentGroup ? currentGroup.children : this.objects;
+    },
+
+    getCurrentGroup() {
+        if (this.groupEditPath.length === 0) return null;
+        let current = null;
+        let list = this.objects;
+        for (const groupId of this.groupEditPath) {
+            current = list.find(o => o.id === groupId);
+            if (current && current.children) {
+                list = current.children;
+            } else {
+                return null;
+            }
+        }
+        return current;
+    },
+
+    enterGroup(groupId) {
+        this.groupEditPath.push(groupId);
+        this.clearSelection();
+    },
+
+    exitGroup() {
+        if (this.groupEditPath.length > 0) {
+            this.groupEditPath.pop();
+            this.clearSelection();
+        }
+    },
+
+    exitAllGroups() {
+        this.groupEditPath = [];
+        this.clearSelection();
+    },
+
+    loadComponentLibrary() {
+        try {
+            const saved = localStorage.getItem('floorplan_component_library');
+            if (saved) {
+                const data = JSON.parse(saved);
+                this.componentLibrary.components = data.components || [];
+                if (data.categories) {
+                    this.componentLibrary.categories = data.categories;
+                }
+            }
+        } catch (e) {
+            console.error('加载组件库失败:', e);
+        }
+    },
+
+    saveComponentLibrary() {
+        try {
+            localStorage.setItem('floorplan_component_library', JSON.stringify({
+                categories: this.componentLibrary.categories,
+                components: this.componentLibrary.components
+            }));
+        } catch (e) {
+            console.error('保存组件库失败:', e);
+        }
+    },
+
+    addComponent(component) {
+        this.componentLibrary.components.push(component);
+        this.saveComponentLibrary();
+    },
+
+    removeComponent(componentId) {
+        const index = this.componentLibrary.components.findIndex(c => c.id === componentId);
+        if (index !== -1) {
+            this.componentLibrary.components.splice(index, 1);
+            this.saveComponentLibrary();
+        }
+    },
+
+    updateComponent(componentId, updates) {
+        const comp = this.componentLibrary.components.find(c => c.id === componentId);
+        if (comp) {
+            Object.assign(comp, updates);
+            this.saveComponentLibrary();
+        }
     }
 };

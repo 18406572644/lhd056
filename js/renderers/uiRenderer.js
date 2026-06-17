@@ -17,40 +17,72 @@ const UIRenderer = {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        if (Store.selection.objectId) {
-            const obj = Store.getObject(Store.selection.objectId);
-            if (obj) {
-                if (obj.type === 'furniture' || obj.type === 'text') {
-                    this.drawSelectionHandles(ctx, obj);
-                } else if (obj.type === 'wall') {
-                    this.drawWallSelection(ctx, obj);
-                } else if (obj.type === 'dimension') {
-                    this.drawDimensionSelection(ctx, obj);
+        if (Store.selection.objectIds && Store.selection.objectIds.length > 0) {
+            Store.selection.objectIds.forEach((id, index) => {
+                const obj = Store.getObject(id);
+                if (obj) {
+                    const isPrimary = index === Store.selection.objectIds.length - 1;
+                    if (obj.type === 'furniture' || obj.type === 'text') {
+                        this.drawSelectionBox(ctx, obj, isPrimary);
+                    } else if (obj.type === 'wall') {
+                        this.drawWallSelection(ctx, obj, isPrimary);
+                    } else if (obj.type === 'dimension') {
+                        this.drawDimensionSelection(ctx, obj, isPrimary);
+                    } else if (obj.type === 'group') {
+                        this.drawGroupSelection(ctx, obj, isPrimary);
+                    }
+                }
+            });
+
+            const primaryObj = Store.getObject(Store.selection.objectId);
+            if (primaryObj && Store.selection.objectIds.length === 1) {
+                if (primaryObj.type === 'furniture' || primaryObj.type === 'text' || primaryObj.type === 'group') {
+                    this.drawResizeHandles(ctx, primaryObj);
                 }
             }
         }
+
+        if (SelectTool && SelectTool.marqueeStart && SelectTool.marqueeEnd) {
+            this.drawMarquee(ctx);
+        }
+
+        if (Store.groupEditPath && Store.groupEditPath.length > 0) {
+            this.drawGroupEditIndicator(ctx);
+        }
     },
 
-    drawSelectionHandles(ctx, obj) {
+    drawSelectionBox(ctx, obj, isPrimary) {
+        const color = isPrimary ? '#3b82f6' : '#93c5fd';
+        if (obj.type === 'furniture' || obj.type === 'text') {
+            const corners = Coordinates.getObjectCorners(obj);
+            const scale = Store.canvas.scale;
+
+            if (corners.length !== 4) return;
+
+            const screenCorners = corners.map(c => Coordinates.worldToScreen(c.x, c.y));
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+
+            ctx.beginPath();
+            ctx.moveTo(screenCorners[0].x, screenCorners[0].y);
+            for (let i = 1; i < 4; i++) {
+                ctx.lineTo(screenCorners[i].x, screenCorners[i].y);
+            }
+            ctx.closePath();
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+    },
+
+    drawResizeHandles(ctx, obj) {
         const corners = Coordinates.getObjectCorners(obj);
         const scale = Store.canvas.scale;
 
         if (corners.length !== 4) return;
 
         const screenCorners = corners.map(c => Coordinates.worldToScreen(c.x, c.y));
-
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-
-        ctx.beginPath();
-        ctx.moveTo(screenCorners[0].x, screenCorners[0].y);
-        for (let i = 1; i < 4; i++) {
-            ctx.lineTo(screenCorners[i].x, screenCorners[i].y);
-        }
-        ctx.closePath();
-        ctx.stroke();
-        ctx.setLineDash([]);
 
         const edges = [
             { x: (screenCorners[0].x + screenCorners[1].x) / 2, y: (screenCorners[0].y + screenCorners[1].y) / 2 },
@@ -82,36 +114,84 @@ const UIRenderer = {
             ctx.stroke();
         });
 
-        const rotateHandleSize = 10 * scale;
-        const centerScreen = Coordinates.worldToScreen(obj.x, obj.y);
-        const handleY = centerScreen.y - Coordinates.worldDistanceToScreen(obj.height / 2 + 30);
+        if (obj.type !== 'group') {
+            const rotateHandleSize = 10 * scale;
+            const centerScreen = Coordinates.worldToScreen(obj.x, obj.y);
+            const handleY = centerScreen.y - Coordinates.worldDistanceToScreen(obj.height / 2 + 30);
 
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(centerScreen.x, centerScreen.y - Coordinates.worldDistanceToScreen(obj.height / 2));
-        ctx.lineTo(centerScreen.x, handleY - rotateHandleSize);
-        ctx.stroke();
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(centerScreen.x, centerScreen.y - Coordinates.worldDistanceToScreen(obj.height / 2));
+            ctx.lineTo(centerScreen.x, handleY - rotateHandleSize);
+            ctx.stroke();
 
-        ctx.fillStyle = '#ffffff';
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(centerScreen.x, handleY, rotateHandleSize, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(centerScreen.x, handleY, rotateHandleSize, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
 
-        ctx.fillStyle = '#3b82f6';
-        ctx.beginPath();
-        ctx.arc(centerScreen.x, handleY, rotateHandleSize * 0.5, 0, Math.PI * 2);
-        ctx.fill();
+            ctx.fillStyle = '#3b82f6';
+            ctx.beginPath();
+            ctx.arc(centerScreen.x, handleY, rotateHandleSize * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
     },
 
-    drawWallSelection(ctx, wall) {
+    drawGroupSelection(ctx, group, isPrimary) {
+        const corners = Coordinates.getObjectCorners(group);
+        const scale = Store.canvas.scale;
+
+        if (corners.length !== 4) return;
+
+        const screenCorners = corners.map(c => Coordinates.worldToScreen(c.x, c.y));
+        const color = isPrimary ? '#8b5cf6' : '#c4b5fd';
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 4]);
+
+        ctx.beginPath();
+        ctx.moveTo(screenCorners[0].x, screenCorners[0].y);
+        for (let i = 1; i < 4; i++) {
+            ctx.lineTo(screenCorners[i].x, screenCorners[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const centerScreen = Coordinates.worldToScreen(group.x, group.y);
+        const labelWidth = 60 * scale;
+        const labelHeight = 20 * scale;
+        const labelY = screenCorners[0].y - labelHeight - 4;
+
+        ctx.fillStyle = '#8b5cf6';
+        ctx.beginPath();
+        ctx.roundRect(
+            centerScreen.x - labelWidth / 2,
+            labelY,
+            labelWidth,
+            labelHeight,
+            4 * scale
+        );
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${11 * scale}px DM Sans`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('组合', centerScreen.x, labelY + labelHeight / 2);
+    },
+
+    drawWallSelection(ctx, wall, isPrimary = true) {
         const start = Coordinates.worldToScreen(wall.x1, wall.y1);
         const end = Coordinates.worldToScreen(wall.x2, wall.y2);
         const thickness = Coordinates.worldDistanceToScreen(wall.thickness);
         const scale = Store.canvas.scale;
+        const color = isPrimary ? '#3b82f6' : '#93c5fd';
 
         const dx = end.x - start.x;
         const dy = end.y - start.y;
@@ -121,7 +201,7 @@ const UIRenderer = {
         const nx = -dy / len * thickness / 2;
         const ny = dx / len * thickness / 2;
 
-        ctx.strokeStyle = '#3b82f6';
+        ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 4]);
         ctx.beginPath();
@@ -133,33 +213,36 @@ const UIRenderer = {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        const handleSize = 8 * scale;
-        const endpoints = [start, end];
+        if (isPrimary) {
+            const handleSize = 8 * scale;
+            const endpoints = [start, end];
 
-        endpoints.forEach(pos => {
-            ctx.fillStyle = '#ffffff';
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 2;
+            endpoints.forEach(pos => {
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 2;
 
-            ctx.beginPath();
-            ctx.roundRect(
-                pos.x - handleSize / 2,
-                pos.y - handleSize / 2,
-                handleSize,
-                handleSize,
-                2 * scale
-            );
-            ctx.fill();
-            ctx.stroke();
-        });
+                ctx.beginPath();
+                ctx.roundRect(
+                    pos.x - handleSize / 2,
+                    pos.y - handleSize / 2,
+                    handleSize,
+                    handleSize,
+                    2 * scale
+                );
+                ctx.fill();
+                ctx.stroke();
+            });
+        }
     },
 
-    drawDimensionSelection(ctx, dim) {
+    drawDimensionSelection(ctx, dim, isPrimary = true) {
         const start = Coordinates.worldToScreen(dim.x1, dim.y1);
         const end = Coordinates.worldToScreen(dim.x2, dim.y2);
         const scale = Store.canvas.scale;
+        const color = isPrimary ? '#3b82f6' : '#93c5fd';
 
-        ctx.strokeStyle = '#3b82f6';
+        ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 4]);
         ctx.beginPath();
@@ -168,24 +251,96 @@ const UIRenderer = {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        const handleSize = 8 * scale;
-        const endpoints = [start, end];
+        if (isPrimary) {
+            const handleSize = 8 * scale;
+            const endpoints = [start, end];
 
-        endpoints.forEach(pos => {
-            ctx.fillStyle = '#ffffff';
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 2;
+            endpoints.forEach(pos => {
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 2;
 
-            ctx.beginPath();
-            ctx.roundRect(
-                pos.x - handleSize / 2,
-                pos.y - handleSize / 2,
-                handleSize,
-                handleSize,
-                2 * scale
-            );
-            ctx.fill();
-            ctx.stroke();
-        });
+                ctx.beginPath();
+                ctx.roundRect(
+                    pos.x - handleSize / 2,
+                    pos.y - handleSize / 2,
+                    handleSize,
+                    handleSize,
+                    2 * scale
+                );
+                ctx.fill();
+                ctx.stroke();
+            });
+        }
+    },
+
+    drawMarquee(ctx) {
+        const start = SelectTool.marqueeStart;
+        const end = SelectTool.marqueeEnd;
+
+        const x = Math.min(start.x, end.x);
+        const y = Math.min(start.y, end.y);
+        const width = Math.abs(end.x - start.x);
+        const height = Math.abs(end.y - start.y);
+
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+
+        ctx.beginPath();
+        ctx.rect(x, y, width, height);
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
+    },
+
+    drawGroupEditIndicator(ctx) {
+        const scale = Store.canvas.scale;
+        const currentGroup = Store.getCurrentGroup();
+        
+        if (currentGroup) {
+            const bounds = Store.getGroupBounds(currentGroup);
+            if (bounds) {
+                const padding = 20;
+                const minX = bounds.minX - padding;
+                const minY = bounds.minY - padding;
+                const maxX = bounds.maxX + padding;
+                const maxY = bounds.maxY + padding;
+
+                const screenMin = Coordinates.worldToScreen(minX, minY);
+                const screenMax = Coordinates.worldToScreen(maxX, maxY);
+
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([10, 5]);
+                ctx.strokeRect(
+                    screenMin.x, screenMin.y,
+                    screenMax.x - screenMin.x, screenMax.y - screenMin.y
+                );
+                ctx.setLineDash([]);
+            }
+        }
+
+        const breadcrumbY = 60;
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.9)';
+        ctx.beginPath();
+        ctx.roundRect(20, breadcrumbY - 18, 200, 28, 6);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '13px DM Sans';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        
+        let text = '编辑中: ';
+        if (Store.groupEditPath.length > 0) {
+            text += Store.groupEditPath.map((_, i) => `组合${i + 1}`).join(' / ');
+        }
+        ctx.fillText(text, 30, breadcrumbY - 4);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.font = '11px DM Sans';
+        ctx.fillText('按 Esc 退出', 30, breadcrumbY + 8);
     }
 };
