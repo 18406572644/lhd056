@@ -115,14 +115,51 @@ const ExportUtils = {
                 const nx = -dy / len * obj.thickness / 2;
                 const ny = dx / len * obj.thickness / 2;
 
-                ctx.fillStyle = '#333333';
+                const points = [
+                    { x: obj.x1 + nx, y: obj.y1 + ny },
+                    { x: obj.x2 + nx, y: obj.y2 + ny },
+                    { x: obj.x2 - nx, y: obj.y2 - ny },
+                    { x: obj.x1 - nx, y: obj.y1 - ny }
+                ];
+
+                if (obj.materialId && typeof MaterialRenderer !== 'undefined' && typeof MaterialLibrary !== 'undefined') {
+                    const material = MaterialLibrary.getMaterialById(obj.materialId);
+                    if (material) {
+                        this.drawMaterialFill(ctx, points, material, {
+                            scale: obj.materialScale || 1,
+                            rotation: obj.materialRotation || 0,
+                            opacity: obj.materialOpacity !== undefined ? obj.materialOpacity : 1
+                        });
+                    } else {
+                        ctx.fillStyle = '#333333';
+                        ctx.beginPath();
+                        ctx.moveTo(points[0].x, points[0].y);
+                        for (let i = 1; i < points.length; i++) {
+                            ctx.lineTo(points[i].x, points[i].y);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                } else {
+                    ctx.fillStyle = '#333333';
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                ctx.strokeStyle = '#1a1a1a';
+                ctx.lineWidth = 1;
                 ctx.beginPath();
-                ctx.moveTo(obj.x1 + nx, obj.y1 + ny);
-                ctx.lineTo(obj.x2 + nx, obj.y2 + ny);
-                ctx.lineTo(obj.x2 - nx, obj.y2 - ny);
-                ctx.lineTo(obj.x1 - nx, obj.y1 - ny);
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
+                }
                 ctx.closePath();
-                ctx.fill();
+                ctx.stroke();
             }
         });
     },
@@ -134,11 +171,31 @@ const ExportUtils = {
                 ctx.translate(obj.x, obj.y);
                 ctx.rotate(obj.rotation || 0);
 
-                ctx.fillStyle = obj.color + 'cc';
+                if (obj.materialId && typeof MaterialRenderer !== 'undefined' && typeof MaterialLibrary !== 'undefined') {
+                    const material = MaterialLibrary.getMaterialById(obj.materialId);
+                    if (material) {
+                        const rect = {
+                            x: -obj.width / 2,
+                            y: -obj.height / 2,
+                            width: obj.width,
+                            height: obj.height
+                        };
+                        this.drawMaterialFillRect(ctx, rect, material, {
+                            scale: obj.materialScale || 1,
+                            rotation: obj.materialRotation || 0,
+                            opacity: obj.materialOpacity !== undefined ? obj.materialOpacity : 1
+                        });
+                    } else {
+                        ctx.fillStyle = obj.color + 'cc';
+                        ctx.fillRect(-obj.width / 2, -obj.height / 2, obj.width, obj.height);
+                    }
+                } else {
+                    ctx.fillStyle = obj.color + 'cc';
+                    ctx.fillRect(-obj.width / 2, -obj.height / 2, obj.width, obj.height);
+                }
+
                 ctx.strokeStyle = '#374151';
                 ctx.lineWidth = 1;
-
-                ctx.fillRect(-obj.width / 2, -obj.height / 2, obj.width, obj.height);
                 ctx.strokeRect(-obj.width / 2, -obj.height / 2, obj.width, obj.height);
 
                 ctx.fillStyle = '#374151';
@@ -151,6 +208,90 @@ const ExportUtils = {
                 ctx.restore();
             }
         });
+    },
+
+    drawMaterialFill(ctx, points, material, options) {
+        const { scale = 1, rotation = 0, opacity = 1 } = options;
+        const textureScale = scale * (material.defaultScale || 50);
+
+        if (textureScale <= 0) return;
+
+        const textureCanvas = MaterialLibrary.generateTextureCanvas(material, 256);
+        if (!textureCanvas) return;
+
+        const rotatedCanvas = document.createElement('canvas');
+        rotatedCanvas.width = 256;
+        rotatedCanvas.height = 256;
+        const rctx = rotatedCanvas.getContext('2d');
+
+        if (rotation !== 0) {
+            rctx.save();
+            rctx.translate(128, 128);
+            rctx.rotate(rotation * Math.PI / 180);
+            rctx.drawImage(textureCanvas, -128, -128, 256, 256);
+            rctx.restore();
+        } else {
+            rctx.drawImage(textureCanvas, 0, 0);
+        }
+
+        ctx.save();
+
+        if (opacity < 1) {
+            ctx.globalAlpha = opacity;
+        }
+
+        const pattern = ctx.createPattern(rotatedCanvas, 'repeat');
+        if (pattern) {
+            ctx.fillStyle = pattern;
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        ctx.restore();
+    },
+
+    drawMaterialFillRect(ctx, rect, material, options) {
+        const { scale = 1, rotation = 0, opacity = 1 } = options;
+        const textureScale = scale * (material.defaultScale || 50);
+
+        if (textureScale <= 0) return;
+
+        const textureCanvas = MaterialLibrary.generateTextureCanvas(material, 256);
+        if (!textureCanvas) return;
+
+        const rotatedCanvas = document.createElement('canvas');
+        rotatedCanvas.width = 256;
+        rotatedCanvas.height = 256;
+        const rctx = rotatedCanvas.getContext('2d');
+
+        if (rotation !== 0) {
+            rctx.save();
+            rctx.translate(128, 128);
+            rctx.rotate(rotation * Math.PI / 180);
+            rctx.drawImage(textureCanvas, -128, -128, 256, 256);
+            rctx.restore();
+        } else {
+            rctx.drawImage(textureCanvas, 0, 0);
+        }
+
+        ctx.save();
+
+        if (opacity < 1) {
+            ctx.globalAlpha = opacity;
+        }
+
+        const pattern = ctx.createPattern(rotatedCanvas, 'repeat');
+        if (pattern) {
+            ctx.fillStyle = pattern;
+            ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+        }
+
+        ctx.restore();
     },
 
     drawAnnotationsForExport(ctx) {

@@ -855,6 +855,11 @@ const App = {
 
             if (selectedObj.type === 'wall' || selectedObj.type === 'furniture') {
                 panel.classList.add('active');
+                if (selectedObj.type === 'wall') {
+                    this.currentMaterialCategory = 'wall';
+                } else {
+                    this.currentMaterialCategory = 'floor';
+                }
                 this.renderBasicTab(selectedObj);
                 this.renderMaterialTab(selectedObj);
             } else {
@@ -990,10 +995,13 @@ const App = {
         const objType = obj.type;
         const currentMaterialId = obj.materialId || null;
 
-        if (objType === 'wall') {
-            this.currentMaterialCategory = 'wall';
-        } else {
-            this.currentMaterialCategory = 'floor';
+        const validCategories = this.getMaterialCategoriesForType(objType).map(c => c.id);
+        if (!validCategories.includes(this.currentMaterialCategory)) {
+            if (objType === 'wall') {
+                this.currentMaterialCategory = 'wall';
+            } else {
+                this.currentMaterialCategory = 'floor';
+            }
         }
 
         const categories = this.getMaterialCategoriesForType(objType);
@@ -1238,9 +1246,10 @@ const App = {
             const imageData = event.target.result;
 
             const fileName = file.name.replace(/\.[^/.]+$/, '');
+            const displayName = fileName.length > 8 ? fileName.substring(0, 8) + '...' : fileName;
             const material = {
                 id: 'custom_' + Date.now(),
-                name: fileName.length > 6 ? fileName.substring(0, 6) + '...' : fileName,
+                name: displayName,
                 type: 'custom',
                 isCustom: true,
                 imageData: imageData,
@@ -1255,10 +1264,10 @@ const App = {
                     MaterialRenderer.clearCache();
                 }
 
-                this.showToast('纹理上传成功！', 'success');
+                this.showToast(`纹理「${displayName}」上传成功！`, 'success');
 
                 const selectedObj = Store.selection.objectId ? Store.getObject(Store.selection.objectId) : null;
-                if (selectedObj) {
+                if (selectedObj && (selectedObj.type === 'wall' || selectedObj.type === 'furniture')) {
                     this.currentMaterialCategory = 'custom';
                     this.renderMaterialTab(selectedObj);
                 }
