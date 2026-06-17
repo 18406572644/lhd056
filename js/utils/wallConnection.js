@@ -295,6 +295,7 @@ const WallConnection = {
         }
 
         this.updateWallConnections(wall);
+        Store.updateAttachedDoorWindows(wall);
     },
 
     propagateWallMove(wallId, movedEndpoint, fromWallId) {

@@ -198,7 +198,29 @@ const SelectTool = {
             const dy = world.y - this.lastMoveY;
 
             Store.selection.objectIds.forEach(id => {
-                Store.moveObject(id, dx, dy);
+                const obj = Store.getObject(id);
+                if (obj && obj.type === 'doorWindow' && obj.wallId) {
+                    const wall = Store.getObject(obj.wallId);
+                    if (wall) {
+                        const newX = obj.x + dx;
+                        const newY = obj.y + dy;
+                        const wallDx = wall.x2 - wall.x1;
+                        const wallDy = wall.y2 - wall.y1;
+                        const wallLenSq = wallDx * wallDx + wallDy * wallDy;
+                        if (wallLenSq > 0) {
+                            let t = ((newX - wall.x1) * wallDx + (newY - wall.y1) * wallDy) / wallLenSq;
+                            const maxT = 1 - obj.width / Math.sqrt(wallLenSq) / 2;
+                            const minT = obj.width / Math.sqrt(wallLenSq) / 2;
+                            t = Math.max(minT, Math.min(maxT, t));
+                            obj.wallT = t;
+                            if (typeof DoorWindowTool !== 'undefined') {
+                                DoorWindowTool.updateDoorWindowPosition(obj);
+                            }
+                        }
+                    }
+                } else {
+                    Store.moveObject(id, dx, dy);
+                }
             });
 
             this.lastMoveX = world.x;
@@ -833,7 +855,7 @@ const SelectTool = {
             });
         }
 
-        if (obj.type === 'furniture' || obj.type === 'text') {
+        if (obj.type === 'furniture' || obj.type === 'text' || obj.type === 'doorWindow') {
             items.push({ type: 'divider' });
             items.push({
                 label: '删除 (Delete)',

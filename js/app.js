@@ -25,6 +25,7 @@ const App = {
             wall: WallTool,
             room: RoomTool,
             furniture: FurnitureTool,
+            doorWindow: DoorWindowTool,
             dimension: DimensionTool,
             text: TextTool
         };
@@ -41,6 +42,10 @@ const App = {
         Object.values(this.renderers).forEach(r => r.init());
 
         this.tools.furniture.init();
+
+        if (typeof DoorWindowTool !== 'undefined') {
+            this.tools.doorWindow.init();
+        }
 
         if (window.ComponentLibrary) {
             window.ComponentLibrary.init();
@@ -264,6 +269,10 @@ const App = {
             this.setTool('room');
         } else if (e.key === 'f' || e.key === 'F') {
             this.setTool('furniture');
+        } else if (e.key === 'g' || e.key === 'G') {
+            if (!e.ctrlKey && !e.metaKey) {
+                this.setTool('doorWindow');
+            }
         } else if (e.key === 'd' || e.key === 'D') {
             this.setTool('dimension');
         } else if (e.key === 't' || e.key === 'T') {
@@ -325,6 +334,7 @@ const App = {
         const typeNames = {
             wall: '墙壁',
             furniture: '家具',
+            doorWindow: '门窗',
             dimension: '尺寸',
             text: '文字',
             group: '组合'
@@ -342,6 +352,16 @@ const App = {
             return `${typeName} | 长度: ${Coordinates.formatDimension(len)} | 厚度: ${obj.thickness}cm`;
         } else if (obj.type === 'furniture') {
             return `${typeName} | ${Coordinates.formatDimension(obj.width)} × ${Coordinates.formatDimension(obj.height)} | 位置: (${(obj.x / 100).toFixed(2)}m, ${(obj.y / 100).toFixed(2)}m)`;
+        } else if (obj.type === 'doorWindow') {
+            const dwNames = {
+                'single-door': '单开门',
+                'double-door': '双开门',
+                'sliding-door': '推拉门',
+                'casement-window': '平开窗',
+                'sliding-window': '推拉窗'
+            };
+            const dwName = dwNames[obj.doorWindowType] || obj.doorWindowType;
+            return `${typeName} | ${dwName} | 宽度: ${Coordinates.formatDimension(obj.width)}`;
         } else if (obj.type === 'dimension') {
             const len = Math.sqrt(
                 Math.pow(obj.x2 - obj.x1, 2) + Math.pow(obj.y2 - obj.y1, 2)
@@ -712,7 +732,7 @@ const App = {
         let maxX = -Infinity, maxY = -Infinity;
 
         Store.objects.forEach(obj => {
-            if (obj.type === 'furniture' || obj.type === 'text') {
+            if (obj.type === 'furniture' || obj.type === 'text' || obj.type === 'doorWindow') {
                 const halfW = obj.width / 2;
                 const halfH = obj.height / 2;
                 minX = Math.min(minX, obj.x - halfW);
@@ -853,10 +873,12 @@ const App = {
                 return;
             }
 
-            if (selectedObj.type === 'wall' || selectedObj.type === 'furniture') {
+            if (selectedObj.type === 'wall' || selectedObj.type === 'furniture' || selectedObj.type === 'doorWindow') {
                 panel.classList.add('active');
                 if (selectedObj.type === 'wall') {
                     this.currentMaterialCategory = 'wall';
+                } else if (selectedObj.type === 'doorWindow') {
+                    this.currentMaterialCategory = 'floor';
                 } else {
                     this.currentMaterialCategory = 'floor';
                 }
@@ -926,6 +948,51 @@ const App = {
                     </div>
                 </div>
             `;
+        } else if (obj.type === 'doorWindow') {
+            const dwNames = {
+                'single-door': '单开门',
+                'double-door': '双开门',
+                'sliding-door': '推拉门',
+                'casement-window': '平开窗',
+                'sliding-window': '推拉窗'
+            };
+            const dwName = dwNames[obj.doorWindowType] || '门窗';
+            const isDoor = obj.category === 'door';
+            html = `
+                <div class="property-group">
+                    <div class="property-group-title">${dwName}属性</div>
+                    <div class="property-item">
+                        <span class="property-label">类型</span>
+                        <span class="property-value-text">${dwName}</span>
+                    </div>
+                    <div class="property-item">
+                        <span class="property-label">宽度</span>
+                        <div style="display: flex; align-items: center;">
+                            <input type="number" class="property-input" id="prop-dw-width" 
+                                   value="${obj.width}" min="40" max="300" step="5">
+                            <span class="property-unit">cm</span>
+                        </div>
+                    </div>
+                    <div class="property-item">
+                        <span class="property-label">高度</span>
+                        <div style="display: flex; align-items: center;">
+                            <input type="number" class="property-input" id="prop-dw-height" 
+                                   value="${obj.objectHeight || (isDoor ? 210 : 150)}" min="50" max="300" step="5">
+                            <span class="property-unit">cm</span>
+                        </div>
+                    </div>
+                    <div class="property-item">
+                        <span class="property-label">开启朝向</span>
+                        <div style="display: flex; align-items: center;">
+                            <select class="property-input" id="prop-dw-open-direction">
+                                <option value="left" ${obj.openDirection === 'left' ? 'selected' : ''}>左开</option>
+                                <option value="right" ${obj.openDirection === 'right' ? 'selected' : ''}>右开</option>
+                                ${obj.doorWindowType === 'double-door' ? '<option value="both" ' + (obj.openDirection === 'both' ? 'selected' : '') + '>双开</option>' : ''}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         content.innerHTML = html;
@@ -983,6 +1050,34 @@ const App = {
                     if (!isNaN(value) && value > 0) {
                         Store.updateObject(obj.id, { depth: value });
                     }
+                });
+            }
+        } else if (obj.type === 'doorWindow') {
+            const widthInput = document.getElementById('prop-dw-width');
+            const heightInput = document.getElementById('prop-dw-height');
+            const openDirSelect = document.getElementById('prop-dw-open-direction');
+
+            if (widthInput) {
+                widthInput.addEventListener('change', (e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value) && value >= 40) {
+                        Store.updateObject(obj.id, { width: value });
+                    }
+                });
+            }
+
+            if (heightInput) {
+                heightInput.addEventListener('change', (e) => {
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value) && value > 0) {
+                        Store.updateObject(obj.id, { objectHeight: value });
+                    }
+                });
+            }
+
+            if (openDirSelect) {
+                openDirSelect.addEventListener('change', (e) => {
+                    Store.updateObject(obj.id, { openDirection: e.target.value });
                 });
             }
         }

@@ -161,6 +161,10 @@ const Store = {
                 obj.y1 += dy;
                 obj.x2 += dx;
                 obj.y2 += dy;
+                this.updateAttachedDoorWindows(obj);
+            } else if (obj.type === 'doorWindow') {
+                obj.x += dx;
+                obj.y += dy;
             } else if (obj.type === 'dimension') {
                 obj.x1 += dx;
                 obj.y1 += dy;
@@ -173,12 +177,23 @@ const Store = {
         }
     },
 
+    updateAttachedDoorWindows(wall) {
+        const objects = this.getCurrentObjects();
+        objects.forEach(obj => {
+            if (obj.type === 'doorWindow' && obj.wallId === wall.id) {
+                if (typeof DoorWindowTool !== 'undefined') {
+                    DoorWindowTool.updateDoorWindowPosition(obj);
+                }
+            }
+        });
+    },
+
     moveGroup(group, dx, dy) {
         if (group.children) {
             group.children.forEach(child => {
                 if (child.type === 'group') {
                     this.moveGroup(child, dx, dy);
-                } else if (child.type === 'furniture' || child.type === 'text') {
+                } else if (child.type === 'furniture' || child.type === 'text' || child.type === 'doorWindow') {
                     child.x += dx;
                     child.y += dy;
                 } else if (child.type === 'wall') {

@@ -1864,3 +1864,15 @@ html, body {
 .toast-message {
     line-height: 1.4;
 }
+
+.property-value-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: #1f2937;
+    font-family: 'DM Sans', sans-serif;
+}
+
+.property-input option {
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+}

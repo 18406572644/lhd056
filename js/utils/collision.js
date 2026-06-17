@@ -65,10 +65,34 @@ const Collision = {
             return this.pointInRect(x, y, obj);
         } else if (obj.type === 'wall') {
             return this.pointNearWall(x, y, obj);
+        } else if (obj.type === 'doorWindow') {
+            return this.hitTestDoorWindow(x, y, obj);
         } else if (obj.type === 'dimension') {
             return this.pointNearWall(x, y, obj, 10);
         }
         return false;
+    },
+
+    hitTestDoorWindow(x, y, dw) {
+        const wall = Store.getObject(dw.wallId);
+        if (!wall) return false;
+
+        const dx = wall.x2 - wall.x1;
+        const dy = wall.y2 - wall.y1;
+        const wallLen = Math.sqrt(dx * dx + dy * dy);
+        if (wallLen === 0) return false;
+
+        const angle = Math.atan2(dy, dx);
+        const cos = Math.cos(-angle);
+        const sin = Math.sin(-angle);
+
+        const localX = (x - dw.x) * cos - (y - dw.y) * sin;
+        const localY = (x - dw.x) * sin + (y - dw.y) * cos;
+
+        const halfW = dw.width / 2;
+        const halfThick = wall.thickness / 2;
+
+        return Math.abs(localX) <= halfW && Math.abs(localY) <= halfThick;
     },
 
     findObjectsInRect(x1, y1, x2, y2) {
@@ -90,6 +114,8 @@ const Collision = {
                 const inRange1 = obj.x1 >= minX && obj.x1 <= maxX && obj.y1 >= minY && obj.y1 <= maxY;
                 const inRange2 = obj.x2 >= minX && obj.x2 <= maxX && obj.y2 >= minY && obj.y2 <= maxY;
                 return inRange1 || inRange2;
+            } else if (obj.type === 'doorWindow') {
+                return obj.x >= minX && obj.x <= maxX && obj.y >= minY && obj.y <= maxY;
             } else if (obj.type === 'group') {
                 if (obj.x !== undefined && obj.y !== undefined && obj.width !== undefined && obj.height !== undefined) {
                     const hw = obj.width / 2;

@@ -61,6 +61,15 @@
                 </svg>
                 <span class="tool-tip">家具</span>
             </div>
+            <div class="tool-btn" data-tool="doorWindow" title="门窗工具 (G)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="5" y="2" width="14" height="20" rx="1"/>
+                    <line x1="12" y1="2" x2="12" y2="22"/>
+                    <path d="M5 12 L12 5" stroke-dasharray="2 2"/>
+                    <path d="M12 12 L19 5" stroke-dasharray="2 2"/>
+                </svg>
+                <span class="tool-tip">门窗</span>
+            </div>
             <div class="tool-btn" data-tool="dimension" title="尺寸工具 (D)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3"/>
@@ -92,6 +101,7 @@
         <div class="furniture-panel">
             <div class="panel-tabs">
                 <div class="panel-tab active" data-panel="furniture">家具库</div>
+                <div class="panel-tab" data-panel="doorwindow">门窗</div>
                 <div class="panel-tab" data-panel="components">我的组件</div>
             </div>
 
@@ -106,6 +116,18 @@
                     <div class="tab-btn" data-category="bathroom">卫浴</div>
                 </div>
                 <div class="furniture-list" id="furniture-list">
+                </div>
+            </div>
+
+            <div class="panel-content" id="panel-doorwindow">
+                <div class="furniture-header">
+                    <h3>门窗库</h3>
+                </div>
+                <div class="category-tabs" id="doorwindow-category-tabs">
+                    <div class="tab-btn active" data-category="door">门</div>
+                    <div class="tab-btn" data-category="window">窗</div>
+                </div>
+                <div class="furniture-list" id="doorwindow-list">
                 </div>
             </div>
 
@@ -285,6 +307,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
     <script src="js/data/furnitureLibrary.js"></script>
+    <script src="js/data/doorWindowLibrary.js"></script>
     <script src="js/data/templateLibrary.js"></script>
     <script src="js/data/materialLibrary.js"></script>
     <script src="js/store.js"></script>
@@ -305,6 +328,7 @@
     <script src="js/tools/wall.js"></script>
     <script src="js/tools/room.js"></script>
     <script src="js/tools/furniture.js"></script>
+    <script src="js/tools/doorWindow.js"></script>
     <script src="js/tools/dimension.js"></script>
     <script src="js/tools/text.js"></script>
     <script src="js/tools/componentLibrary.js"></script>

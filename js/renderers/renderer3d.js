@@ -7,6 +7,7 @@ const Renderer3D = {
 
     wallMeshes: new Map(),
     furnitureMeshes: new Map(),
+    doorWindowMeshes: new Map(),
     floorMesh: null,
 
     isDragging: false,
@@ -117,6 +118,7 @@ const Renderer3D = {
     getAllObjects() {
         const walls = [];
         const furnitureList = [];
+        const doorWindowList = [];
 
         const collectObjects = (objs) => {
             objs.forEach(obj => {
@@ -124,6 +126,8 @@ const Renderer3D = {
                     walls.push(obj);
                 } else if (obj.type === 'furniture') {
                     furnitureList.push(obj);
+                } else if (obj.type === 'doorWindow') {
+                    doorWindowList.push(obj);
                 } else if (obj.type === 'group' && obj.children) {
                     collectObjects(obj.children);
                 }
@@ -131,14 +135,15 @@ const Renderer3D = {
         };
         collectObjects(Store.objects);
 
-        return { walls, furnitureList };
+        return { walls, furnitureList, doorWindowList };
     },
 
     updateAllMeshes() {
-        const { walls, furnitureList } = this.getAllObjects();
+        const { walls, furnitureList, doorWindowList } = this.getAllObjects();
 
         const wallIds = new Set(walls.map(w => w.id));
         const furnIds = new Set(furnitureList.map(f => f.id));
+        const dwIds = new Set(doorWindowList.map(d => d.id));
 
         for (const [id, mesh] of this.wallMeshes) {
             if (!wallIds.has(id)) {
@@ -154,12 +159,23 @@ const Renderer3D = {
             }
         }
 
+        for (const [id, mesh] of this.doorWindowMeshes) {
+            if (!dwIds.has(id)) {
+                this.scene.remove(mesh);
+                this.doorWindowMeshes.delete(id);
+            }
+        }
+
         walls.forEach(wall => {
             this.updateWallMesh(wall);
         });
 
         furnitureList.forEach(furniture => {
             this.updateFurnitureMesh(furniture);
+        });
+
+        doorWindowList.forEach(dw => {
+            this.updateDoorWindowMesh(dw);
         });
     },
 
@@ -345,6 +361,265 @@ const Renderer3D = {
         mesh.userData = { type: 'furniture', id: furniture.id };
         this.scene.add(mesh);
         return mesh;
+    },
+
+    getDoorWindowHash(dw) {
+        return `${dw.x}_${dw.y}_${dw.width}_${dw.height}_${dw.objectHeight}_${dw.angle}_${dw.doorWindowType}_${dw.wallId}_${dw.wallT}_${dw.color}_${dw.openDirection}`;
+    },
+
+    updateDoorWindowMesh(dw) {
+        const hash = this.getDoorWindowHash(dw);
+        const existing = this.doorWindowMeshes.get(dw.id);
+
+        if (existing && existing.userData.hash === hash) {
+            return;
+        }
+
+        if (existing) {
+            if (existing.children) {
+                existing.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
+            this.scene.remove(existing);
+        }
+
+        const group = this.createDoorWindowMesh(dw);
+        if (group) {
+            group.userData.hash = hash;
+            this.doorWindowMeshes.set(dw.id, group);
+        }
+    },
+
+    createDoorWindowMesh(dw) {
+        const wall = Store.getObject(dw.wallId);
+        if (!wall) return null;
+
+        const dwWidth = dw.width;
+        const dwHeight = dw.objectHeight || 210;
+        const wallThickness = wall.thickness;
+        const wallHeight = wall.wallHeight || Store.defaultWallHeight;
+        const angle = dw.angle || 0;
+
+        const group = new THREE.Group();
+        const isDoor = dw.category === 'door';
+
+        if (isDoor) {
+            const frameColor = new THREE.Color(dw.color || '#8B6914');
+            const frameMat = new THREE.MeshStandardMaterial({
+                color: frameColor,
+                roughness: 0.6,
+                metalness: 0.1
+            });
+
+            const frameThickness = 5;
+            const frameTop = new THREE.Mesh(
+                new THREE.BoxGeometry(dwWidth, frameThickness, wallThickness),
+                frameMat
+            );
+            frameTop.position.set(0, dwHeight / 2 - frameThickness / 2, 0);
+            frameTop.castShadow = true;
+            group.add(frameTop);
+
+            const frameLeft = new THREE.Mesh(
+                new THREE.BoxGeometry(frameThickness, dwHeight, wallThickness),
+                frameMat
+            );
+            frameLeft.position.set(-dwWidth / 2 + frameThickness / 2, 0, 0);
+            frameLeft.castShadow = true;
+            group.add(frameLeft);
+
+            const frameRight = new THREE.Mesh(
+                new THREE.BoxGeometry(frameThickness, dwHeight, wallThickness),
+                frameMat
+            );
+            frameRight.position.set(dwWidth / 2 - frameThickness / 2, 0, 0);
+            frameRight.castShadow = true;
+            group.add(frameRight);
+
+            if (dw.doorWindowType === 'sliding-door') {
+                const panelMat = new THREE.MeshStandardMaterial({
+                    color: frameColor,
+                    roughness: 0.5,
+                    metalness: 0.2,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const panelWidth = (dwWidth - frameThickness * 2) / 2;
+                const panelHeight = dwHeight - frameThickness * 2;
+
+                const panel1 = new THREE.Mesh(
+                    new THREE.BoxGeometry(panelWidth, panelHeight, 3),
+                    panelMat
+                );
+                panel1.position.set(-dwWidth / 4, 0, 0);
+                panel1.castShadow = true;
+                group.add(panel1);
+
+                const panel2 = new THREE.Mesh(
+                    new THREE.BoxGeometry(panelWidth, panelHeight, 3),
+                    panelMat
+                );
+                panel2.position.set(dwWidth / 4, 0, 0);
+                panel2.castShadow = true;
+                group.add(panel2);
+            } else {
+                const doorColor = new THREE.Color(dw.color || '#8B6914');
+                const doorMat = new THREE.MeshStandardMaterial({
+                    color: doorColor,
+                    roughness: 0.5,
+                    metalness: 0.1,
+                    transparent: true,
+                    opacity: 0.6
+                });
+
+                if (dw.doorWindowType === 'single-door') {
+                    const doorPanel = new THREE.Mesh(
+                        new THREE.BoxGeometry(dwWidth - frameThickness * 2, dwHeight - frameThickness * 2, 3),
+                        doorMat
+                    );
+                    doorPanel.position.set(0, 0, 0);
+                    doorPanel.castShadow = true;
+                    group.add(doorPanel);
+                } else if (dw.doorWindowType === 'double-door') {
+                    const panelWidth = (dwWidth - frameThickness * 3) / 2;
+                    const panelHeight = dwHeight - frameThickness * 2;
+
+                    const leftPanel = new THREE.Mesh(
+                        new THREE.BoxGeometry(panelWidth, panelHeight, 3),
+                        doorMat
+                    );
+                    leftPanel.position.set(-dwWidth / 4 - frameThickness / 4, 0, 0);
+                    leftPanel.castShadow = true;
+                    group.add(leftPanel);
+
+                    const rightPanel = new THREE.Mesh(
+                        new THREE.BoxGeometry(panelWidth, panelHeight, 3),
+                        doorMat
+                    );
+                    rightPanel.position.set(dwWidth / 4 + frameThickness / 4, 0, 0);
+                    rightPanel.castShadow = true;
+                    group.add(rightPanel);
+                }
+            }
+
+        } else {
+            const frameColor = new THREE.Color(dw.color || '#93C5FD');
+            const frameMat = new THREE.MeshStandardMaterial({
+                color: frameColor,
+                roughness: 0.4,
+                metalness: 0.2
+            });
+
+            const frameThickness = 4;
+            const sillHeight = 80;
+            const winHeight = dwHeight - frameThickness * 2;
+            const winBottom = sillHeight - dwHeight / 2;
+
+            const frameTop = new THREE.Mesh(
+                new THREE.BoxGeometry(dwWidth, frameThickness, wallThickness),
+                frameMat
+            );
+            frameTop.position.set(0, winBottom + winHeight, 0);
+            frameTop.castShadow = true;
+            group.add(frameTop);
+
+            const frameBottom = new THREE.Mesh(
+                new THREE.BoxGeometry(dwWidth, frameThickness, wallThickness),
+                frameMat
+            );
+            frameBottom.position.set(0, winBottom + frameThickness / 2, 0);
+            frameBottom.castShadow = true;
+            group.add(frameBottom);
+
+            const frameLeft = new THREE.Mesh(
+                new THREE.BoxGeometry(frameThickness, winHeight, wallThickness),
+                frameMat
+            );
+            frameLeft.position.set(-dwWidth / 2 + frameThickness / 2, winBottom + winHeight / 2, 0);
+            frameLeft.castShadow = true;
+            group.add(frameLeft);
+
+            const frameRight = new THREE.Mesh(
+                new THREE.BoxGeometry(frameThickness, winHeight, wallThickness),
+                frameMat
+            );
+            frameRight.position.set(dwWidth / 2 - frameThickness / 2, winBottom + winHeight / 2, 0);
+            frameRight.castShadow = true;
+            group.add(frameRight);
+
+            const glassMat = new THREE.MeshStandardMaterial({
+                color: 0xc8e6ff,
+                roughness: 0.1,
+                metalness: 0.0,
+                transparent: true,
+                opacity: 0.3
+            });
+
+            const innerWidth = dwWidth - frameThickness * 2;
+            const innerHeight = winHeight - frameThickness * 2;
+
+            if (dw.doorWindowType === 'casement-window') {
+                const halfInnerW = innerWidth / 2;
+
+                const leftGlass = new THREE.Mesh(
+                    new THREE.BoxGeometry(halfInnerW, innerHeight, 2),
+                    glassMat
+                );
+                leftGlass.position.set(-halfInnerW / 2, winBottom + winHeight / 2, 0);
+                group.add(leftGlass);
+
+                const rightGlass = new THREE.Mesh(
+                    new THREE.BoxGeometry(halfInnerW, innerHeight, 2),
+                    glassMat
+                );
+                rightGlass.position.set(halfInnerW / 2, winBottom + winHeight / 2, 0);
+                group.add(rightGlass);
+
+            } else if (dw.doorWindowType === 'sliding-window') {
+                const halfInnerW = innerWidth / 2;
+
+                const glass1 = new THREE.Mesh(
+                    new THREE.BoxGeometry(halfInnerW, innerHeight, 2),
+                    glassMat
+                );
+                glass1.position.set(-halfInnerW / 2, winBottom + winHeight / 2, 1.5);
+                group.add(glass1);
+
+                const glass2 = new THREE.Mesh(
+                    new THREE.BoxGeometry(halfInnerW, innerHeight, 2),
+                    glassMat
+                );
+                glass2.position.set(halfInnerW / 2, winBottom + winHeight / 2, -1.5);
+                group.add(glass2);
+            }
+
+            const wallBelow = new THREE.Mesh(
+                new THREE.BoxGeometry(dwWidth, sillHeight, wallThickness),
+                new THREE.MeshStandardMaterial({ color: 0x5a5a6a, roughness: 0.7 })
+            );
+            wallBelow.position.set(0, -dwHeight / 2 + sillHeight / 2, 0);
+            wallBelow.castShadow = true;
+            group.add(wallBelow);
+        }
+
+        const wallMidX = (wall.x1 + wall.x2) / 2;
+        const wallMidY = (wall.y1 + wall.y2) / 2;
+        const wallDx = wall.x2 - wall.x1;
+        const wallDy = wall.y2 - wall.y1;
+        const wallLen = Math.sqrt(wallDx * wallDx + wallDy * wallDy);
+
+        const t = dw.wallT || 0;
+        const posX = wall.x1 + t * wallDx;
+        const posZ = wall.y1 + t * wallDy;
+
+        group.position.set(posX, dwHeight / 2, posZ);
+        group.rotation.y = -Math.atan2(wallDy, wallDx);
+
+        group.userData = { type: 'doorWindow', id: dw.id };
+        this.scene.add(group);
+        return group;
     },
 
     setupEventListeners() {

@@ -23,6 +23,7 @@ class DeleteObjectCommand extends Command {
         this.object = null;
         this.parentGroupId = null;
         this.connectedWallsState = null;
+        this.attachedDoorWindows = null;
     }
     execute() {
         const obj = Store.getObject(this.objectId);
@@ -50,6 +51,13 @@ class DeleteObjectCommand extends Command {
             });
 
             WallConnection.handleWallDeletion(this.objectId);
+
+            this.attachedDoorWindows = [];
+            const doorWindows = Store.getCurrentObjects().filter(o => o.type === 'doorWindow' && o.wallId === this.objectId);
+            doorWindows.forEach(dw => {
+                this.attachedDoorWindows.push(JSON.parse(JSON.stringify(dw)));
+                Store.removeObject(dw.id);
+            });
         }
 
         Store.removeObject(this.objectId);
@@ -67,6 +75,13 @@ class DeleteObjectCommand extends Command {
             }
         } else {
             Store.objects.push(objClone);
+        }
+
+        if (this.attachedDoorWindows) {
+            this.attachedDoorWindows.forEach(dw => {
+                const dwClone = JSON.parse(JSON.stringify(dw));
+                Store.objects.push(dwClone);
+            });
         }
 
         if (this.connectedWallsState) {

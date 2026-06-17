@@ -38,6 +38,8 @@ const WallRenderer = {
 
         drawWalls(Store.objects);
 
+        this.drawDoorWindows(ctx);
+
         if (!Store.previewObject || Store.previewObject.type !== 'wall') {
             this.drawCrossJunctionCaps(ctx);
         }
@@ -50,6 +52,217 @@ const WallRenderer = {
         if (Store.previewObject && Store.previewObject.type === 'room') {
             this.drawRoomPreview(ctx, Store.previewObject);
         }
+
+        if (Store.dragState.tempObject && Store.dragState.tempObject.type === 'doorWindow') {
+            this.drawDoorWindow(ctx, Store.dragState.tempObject);
+        }
+    },
+
+    drawDoorWindows(ctx) {
+        const doorWindows = [];
+        const collectDoorWindows = (objs) => {
+            objs.forEach(obj => {
+                if (obj.type === 'doorWindow') {
+                    doorWindows.push(obj);
+                } else if (obj.type === 'group' && obj.children) {
+                    collectDoorWindows(obj.children);
+                }
+            });
+        };
+        collectDoorWindows(Store.objects);
+        doorWindows.forEach(dw => this.drawDoorWindow(ctx, dw));
+    },
+
+    drawDoorWindow(ctx, dw) {
+        const wall = Store.getObject(dw.wallId);
+        if (!wall) return;
+
+        const screenPos = Coordinates.worldToScreen(dw.x, dw.y);
+        const scale = Store.canvas.scale;
+        const dwWidth = Coordinates.worldDistanceToScreen(dw.width);
+        const wallThickness = Coordinates.worldDistanceToScreen(wall.thickness);
+
+        const angle = dw.angle || 0;
+
+        ctx.save();
+        ctx.translate(screenPos.x, screenPos.y);
+        ctx.rotate(angle);
+
+        const halfW = dwWidth / 2;
+        const halfThick = wallThickness / 2;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(-halfW, -halfThick, dwWidth, wallThickness);
+
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-halfW, -halfThick, dwWidth, wallThickness);
+
+        const isDoor = dw.category === 'door';
+
+        if (isDoor) {
+            this.drawDoorSymbol(ctx, dw, halfW, halfThick, scale);
+        } else {
+            this.drawWindowSymbol(ctx, dw, halfW, halfThick, scale);
+        }
+
+        ctx.restore();
+    },
+
+    drawDoorSymbol(ctx, dw, halfW, halfThick, scale) {
+        if (dw.doorWindowType === 'single-door') {
+            ctx.beginPath();
+            ctx.moveTo(-halfW, -halfThick);
+            ctx.lineTo(-halfW, -halfThick - halfW);
+            ctx.strokeStyle = dw.color || '#8B6914';
+            ctx.lineWidth = 1.5 * scale;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(-halfW, -halfThick, halfW, -Math.PI / 2, 0);
+            ctx.strokeStyle = (dw.color || '#8B6914') + '88';
+            ctx.setLineDash([3 * scale, 3 * scale]);
+            ctx.lineWidth = 1 * scale;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#1a1a1a';
+            ctx.beginPath();
+            ctx.arc(halfW - 4 * scale, -halfThick, 2 * scale, 0, Math.PI * 2);
+            ctx.fill();
+
+        } else if (dw.doorWindowType === 'double-door') {
+            ctx.beginPath();
+            ctx.moveTo(-halfW, -halfThick);
+            ctx.lineTo(-halfW, -halfThick - halfW / 2);
+            ctx.strokeStyle = dw.color || '#8B6914';
+            ctx.lineWidth = 1.5 * scale;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(halfW, -halfThick);
+            ctx.lineTo(halfW, -halfThick - halfW / 2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(-halfW, -halfThick, halfW / 2, -Math.PI / 2, 0);
+            ctx.strokeStyle = (dw.color || '#8B6914') + '88';
+            ctx.setLineDash([3 * scale, 3 * scale]);
+            ctx.lineWidth = 1 * scale;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.beginPath();
+            ctx.arc(halfW, -halfThick, halfW / 2, Math.PI, -Math.PI / 2, true);
+            ctx.strokeStyle = (dw.color || '#8B6914') + '88';
+            ctx.setLineDash([3 * scale, 3 * scale]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+        } else if (dw.doorWindowType === 'sliding-door') {
+            ctx.beginPath();
+            ctx.moveTo(0, -halfThick);
+            ctx.lineTo(0, halfThick);
+            ctx.strokeStyle = (dw.color || '#6B7280') + '66';
+            ctx.setLineDash([3 * scale, 3 * scale]);
+            ctx.lineWidth = 1 * scale;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = (dw.color || '#6B7280') + '44';
+            ctx.fillRect(-halfW, -halfThick, halfW, halfThick * 2);
+
+            ctx.fillStyle = (dw.color || '#6B7280') + '22';
+            ctx.fillRect(0, -halfThick, halfW, halfThick * 2);
+
+            ctx.beginPath();
+            ctx.moveTo(-halfW / 2, -halfThick + 2 * scale);
+            ctx.lineTo(-halfW / 2, halfThick - 2 * scale);
+            ctx.strokeStyle = dw.color || '#6B7280';
+            ctx.lineWidth = 2 * scale;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(halfW / 2, -halfThick + 2 * scale);
+            ctx.lineTo(halfW / 2, halfThick - 2 * scale);
+            ctx.stroke();
+        }
+    },
+
+    drawWindowSymbol(ctx, dw, halfW, halfThick, scale) {
+        if (dw.doorWindowType === 'casement-window') {
+            ctx.beginPath();
+            ctx.moveTo(0, -halfThick);
+            ctx.lineTo(0, halfThick);
+            ctx.strokeStyle = dw.color || '#93C5FD';
+            ctx.lineWidth = 1 * scale;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(-halfW, -halfThick);
+            ctx.lineTo(-halfW, -halfThick - halfW / 2);
+            ctx.strokeStyle = dw.color || '#93C5FD';
+            ctx.lineWidth = 1.5 * scale;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(-halfW, -halfThick, halfW / 2, -Math.PI / 2, 0);
+            ctx.strokeStyle = (dw.color || '#93C5FD') + '88';
+            ctx.setLineDash([3 * scale, 3 * scale]);
+            ctx.lineWidth = 1 * scale;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.beginPath();
+            ctx.moveTo(halfW, -halfThick);
+            ctx.lineTo(halfW, -halfThick - halfW / 2);
+            ctx.strokeStyle = dw.color || '#93C5FD';
+            ctx.lineWidth = 1.5 * scale;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(halfW, -halfThick, halfW / 2, Math.PI, -Math.PI / 2, true);
+            ctx.strokeStyle = (dw.color || '#93C5FD') + '88';
+            ctx.setLineDash([3 * scale, 3 * scale]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+        } else if (dw.doorWindowType === 'sliding-window') {
+            ctx.beginPath();
+            ctx.moveTo(0, -halfThick);
+            ctx.lineTo(0, halfThick);
+            ctx.strokeStyle = (dw.color || '#93C5FD') + '88';
+            ctx.setLineDash([3 * scale, 3 * scale]);
+            ctx.lineWidth = 1 * scale;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = (dw.color || '#93C5FD') + '33';
+            ctx.fillRect(-halfW, -halfThick, halfW, halfThick * 2);
+
+            ctx.beginPath();
+            ctx.moveTo(-halfW / 2, -halfThick + 2 * scale);
+            ctx.lineTo(-halfW / 2, halfThick - 2 * scale);
+            ctx.strokeStyle = dw.color || '#93C5FD';
+            ctx.lineWidth = 1.5 * scale;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(halfW / 2, -halfThick + 2 * scale);
+            ctx.lineTo(halfW / 2, halfThick - 2 * scale);
+            ctx.stroke();
+        }
+
+        ctx.strokeStyle = dw.color || '#93C5FD';
+        ctx.lineWidth = 1 * scale;
+        ctx.beginPath();
+        ctx.moveTo(-halfW, -halfThick * 0.3);
+        ctx.lineTo(halfW, -halfThick * 0.3);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-halfW, halfThick * 0.3);
+        ctx.lineTo(halfW, halfThick * 0.3);
+        ctx.stroke();
     },
 
     sortWallsForRendering(walls) {

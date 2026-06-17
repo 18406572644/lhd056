@@ -26,6 +26,8 @@ const UIRenderer = {
                         this.drawSelectionBox(ctx, obj, isPrimary);
                     } else if (obj.type === 'wall') {
                         this.drawWallSelection(ctx, obj, isPrimary);
+                    } else if (obj.type === 'doorWindow') {
+                        this.drawDoorWindowSelection(ctx, obj, isPrimary);
                     } else if (obj.type === 'dimension') {
                         this.drawDimensionSelection(ctx, obj, isPrimary);
                     } else if (obj.type === 'group') {
@@ -301,6 +303,59 @@ const UIRenderer = {
             ctx.textBaseline = 'middle';
             ctx.fillText(labelText, screenMid.x, labelY);
         }
+    },
+
+    drawDoorWindowSelection(ctx, dw, isPrimary = true) {
+        const wall = Store.getObject(dw.wallId);
+        if (!wall) return;
+
+        const screenPos = Coordinates.worldToScreen(dw.x, dw.y);
+        const scale = Store.canvas.scale;
+        const dwWidth = Coordinates.worldDistanceToScreen(dw.width);
+        const wallThickness = Coordinates.worldDistanceToScreen(wall.thickness);
+        const angle = dw.angle || 0;
+        const color = isPrimary ? '#3b82f6' : '#93c5fd';
+
+        ctx.save();
+        ctx.translate(screenPos.x, screenPos.y);
+        ctx.rotate(angle);
+
+        const halfW = dwWidth / 2;
+        const halfThick = wallThickness / 2;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(-halfW, -halfThick, dwWidth, wallThickness);
+        ctx.setLineDash([]);
+
+        if (isPrimary) {
+            const handleSize = 8 * scale;
+            const handles = [
+                { x: -halfW, y: -halfThick },
+                { x: halfW, y: -halfThick },
+                { x: halfW, y: halfThick },
+                { x: -halfW, y: halfThick }
+            ];
+
+            handles.forEach(pos => {
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(
+                    pos.x - handleSize / 2,
+                    pos.y - handleSize / 2,
+                    handleSize,
+                    handleSize,
+                    2 * scale
+                );
+                ctx.fill();
+                ctx.stroke();
+            });
+        }
+
+        ctx.restore();
     },
 
     drawDimensionSelection(ctx, dim, isPrimary = true) {
