@@ -164,35 +164,44 @@ const SelectTool = {
         if (Store.selection.handleType === 'move' && Store.selection.objectIds.length > 0) {
             if (Store.dragState.startObjects.length > 0) {
                 const gridSize = Store.canvas.gridSize;
-                const snapPositions = [];
+                const moveInfos = [];
 
                 Store.selection.objectIds.forEach((id, idx) => {
                     const obj = Store.getObject(id);
                     const start = Store.dragState.startObjects[idx];
                     if (obj && start) {
-                        if (obj.type === 'furniture' || obj.type === 'text' || obj.type === 'group') {
+                        if (obj.type === 'furniture' || obj.type === 'text') {
                             const snappedX = Snap.snapToGrid(obj.x, gridSize);
                             const snappedY = Snap.snapToGrid(obj.y, gridSize);
                             const dx = snappedX - start.x;
                             const dy = snappedY - start.y;
-                            snapPositions.push({ id, dx, dy, snappedX, snappedY });
+                            moveInfos.push({ id, dx, dy, type: obj.type });
+                        } else if (obj.type === 'group') {
+                            const snappedX = Snap.snapToGrid(obj.x, gridSize);
+                            const snappedY = Snap.snapToGrid(obj.y, gridSize);
+                            const dx = snappedX - start.x;
+                            const dy = snappedY - start.y;
+                            moveInfos.push({ id, dx, dy, type: 'group' });
                         } else if (obj.type === 'wall' || obj.type === 'dimension') {
                             const dx = obj.x1 - start.x1;
                             const dy = obj.y1 - start.y1;
-                            snapPositions.push({ id, dx, dy });
+                            moveInfos.push({ id, dx, dy, type: obj.type });
                         }
                     }
                 });
 
-                const hasMoved = snapPositions.some(p => Math.abs(p.dx) > 0.1 || Math.abs(p.dy) > 0.1);
+                const hasMoved = moveInfos.some(m => Math.abs(m.dx) > 0.1 || Math.abs(m.dy) > 0.1);
 
                 if (hasMoved) {
-                    const commands = [];
-                    snapPositions.forEach((pos, idx) => {
-                        const obj = Store.getObject(pos.id);
-                        const start = Store.dragState.startObjects[idx];
+                    Store.dragState.startObjects.forEach((start, idx) => {
+                        const id = Store.selection.objectIds[idx];
+                        const obj = Store.getObject(id);
                         if (obj && start) {
-                            if (obj.type === 'furniture' || obj.type === 'text' || obj.type === 'group') {
+                            if (obj.type === 'group') {
+                                const dx = start.x - obj.x;
+                                const dy = start.y - obj.y;
+                                Store.moveObject(id, dx, dy);
+                            } else if (obj.type === 'furniture' || obj.type === 'text') {
                                 obj.x = start.x;
                                 obj.y = start.y;
                             } else if (obj.type === 'wall' || obj.type === 'dimension') {
@@ -202,8 +211,12 @@ const SelectTool = {
                                 obj.y2 = start.y2;
                             }
                         }
-                        commands.push(new MoveObjectsCommand([pos.id], pos.dx, pos.dy));
                     });
+
+                    const commands = moveInfos.map(info => 
+                        new MoveObjectsCommand([info.id], info.dx, info.dy)
+                    );
+                    
                     if (commands.length === 1) {
                         CommandManager.execute(commands[0]);
                     } else {
@@ -217,23 +230,28 @@ const SelectTool = {
                 if (this.originalWidth !== obj.width || this.originalHeight !== obj.height ||
                     this.originalX !== obj.x || this.originalY !== obj.y) {
                     const gridSize = Store.canvas.gridSize;
-                    const snappedWidth = Snap.snapToGrid(obj.width, gridSize);
-                    const snappedHeight = Snap.snapToGrid(obj.height, gridSize);
-                    const snappedX = Snap.snapToGrid(obj.x, gridSize);
-                    const snappedY = Snap.snapToGrid(obj.y, gridSize);
+                    
+                    if (obj.type === 'group') {
+                        this.finalizeGroupResize(obj);
+                    } else {
+                        const snappedWidth = Snap.snapToGrid(obj.width, gridSize);
+                        const snappedHeight = Snap.snapToGrid(obj.height, gridSize);
+                        const snappedX = Snap.snapToGrid(obj.x, gridSize);
+                        const snappedY = Snap.snapToGrid(obj.y, gridSize);
 
-                    obj.width = this.originalWidth;
-                    obj.height = this.originalHeight;
-                    obj.x = this.originalX;
-                    obj.y = this.originalY;
+                        obj.width = this.originalWidth;
+                        obj.height = this.originalHeight;
+                        obj.x = this.originalX;
+                        obj.y = this.originalY;
 
-                    CommandManager.execute(new ResizeObjectCommand(
-                        obj.id,
-                        this.originalWidth, this.originalHeight,
-                        snappedWidth, snappedHeight,
-                        this.originalX, this.originalY,
-                        snappedX, snappedY
-                    ));
+                        CommandManager.execute(new ResizeObjectCommand(
+                            obj.id,
+                            this.originalWidth, this.originalHeight,
+                            snappedWidth, snappedHeight,
+                            this.originalX, this.originalY,
+                            snappedX, snappedY
+                        ));
+                    }
                 }
             }
         } else if (Store.selection.handleType === 'rotate') {
@@ -258,6 +276,14 @@ const SelectTool = {
     },
 
     handleResize(obj, world) {
+        if (obj.type === 'group') {
+            this.handleGroupResize(obj, world);
+        } else {
+            this.handleObjectResize(obj, world);
+        }
+    },
+
+    handleObjectResize(obj, world) {
         const handleIndex = Store.selection.handleIndex;
         const corners = Coordinates.getObjectCorners(this.originalObject);
 
@@ -320,6 +346,119 @@ const SelectTool = {
         obj.height = newHeight;
         obj.x = newCenter.x;
         obj.y = newCenter.y;
+    },
+
+    handleGroupResize(group, world) {
+        const handleIndex = Store.selection.handleIndex;
+        const corners = Coordinates.getObjectCorners(this.originalObject);
+
+        let oppositeIndex = (handleIndex + 4) % 8;
+        let oppositeCorner;
+
+        if (oppositeIndex % 2 === 1) {
+            const cornerIdx = Math.floor((oppositeIndex + 1) / 2) % 4;
+            oppositeCorner = corners[cornerIdx];
+        } else {
+            const edgeStart = Math.floor(oppositeIndex / 2);
+            const edgeEnd = (edgeStart + 1) % 4;
+            oppositeCorner = {
+                x: (corners[edgeStart].x + corners[edgeEnd].x) / 2,
+                y: (corners[edgeStart].y + corners[edgeEnd].y) / 2
+            };
+        }
+
+        const cos = Math.cos(-this.originalRotation);
+        const sin = Math.sin(-this.originalRotation);
+
+        const localOpposite = {
+            x: (oppositeCorner.x - this.originalX) * cos - (oppositeCorner.y - this.originalY) * sin,
+            y: (oppositeCorner.x - this.originalX) * sin + (oppositeCorner.y - this.originalY) * cos
+        };
+
+        const localMouse = {
+            x: (world.x - this.originalX) * cos - (world.y - this.originalY) * sin,
+            y: (world.x - this.originalX) * sin + (world.y - this.originalY) * cos
+        };
+
+        let scaleX = 1;
+        let scaleY = 1;
+        let localPivot = { x: 0, y: 0 };
+
+        if (handleIndex % 2 === 0) {
+            if (handleIndex === 0 || handleIndex === 4) {
+                scaleX = 1;
+                scaleY = Math.abs((localMouse.y - localOpposite.y) / this.originalHeight);
+                localPivot.x = 0;
+                localPivot.y = localOpposite.y;
+            } else {
+                scaleX = Math.abs((localMouse.x - localOpposite.x) / this.originalWidth);
+                scaleY = 1;
+                localPivot.x = localOpposite.x;
+                localPivot.y = 0;
+            }
+        } else {
+            scaleX = Math.abs((localMouse.x - localOpposite.x) / this.originalWidth);
+            scaleY = Math.abs((localMouse.y - localOpposite.y) / this.originalHeight);
+            localPivot.x = localOpposite.x;
+            localPivot.y = localOpposite.y;
+        }
+
+        scaleX = Math.max(0.1, scaleX);
+        scaleY = Math.max(0.1, scaleY);
+
+        const cosBack = Math.cos(this.originalRotation);
+        const sinBack = Math.sin(this.originalRotation);
+        const worldPivot = {
+            x: this.originalX + localPivot.x * cosBack - localPivot.y * sinBack,
+            y: this.originalY + localPivot.x * sinBack + localPivot.y * cosBack
+        };
+
+        this.resetGroupToOriginal(group);
+        Store.scaleGroup(group, scaleX, scaleY, worldPivot.x, worldPivot.y);
+    },
+
+    resetGroupToOriginal(group) {
+        const original = this.originalObject;
+        if (!original || !original.children) return;
+
+        group.children = JSON.parse(JSON.stringify(original.children));
+        Store.updateGroupBounds(group);
+    },
+
+    finalizeGroupResize(group) {
+        const gridSize = Store.canvas.gridSize;
+        
+        const finalGroupData = JSON.parse(JSON.stringify(group));
+        const originalGroupData = JSON.parse(JSON.stringify(this.originalObject));
+
+        this.resetGroupToOriginal(group);
+
+        class ResizeGroupCommand extends Command {
+            constructor(groupId, originalData, finalData) {
+                super();
+                this.groupId = groupId;
+                this.originalData = originalData;
+                this.finalData = finalData;
+            }
+            execute() {
+                const g = Store.getObject(this.groupId);
+                if (g) {
+                    g.children = JSON.parse(JSON.stringify(this.finalData.children));
+                    Store.updateGroupBounds(g);
+                }
+            }
+            undo() {
+                const g = Store.getObject(this.groupId);
+                if (g) {
+                    g.children = JSON.parse(JSON.stringify(this.originalData.children));
+                    Store.updateGroupBounds(g);
+                }
+            }
+        }
+
+        CommandManager.execute(new ResizeGroupCommand(
+            group.id, originalGroupData, finalGroupData
+        ));
     },
 
     handleRotate(obj, screenX, screenY) {

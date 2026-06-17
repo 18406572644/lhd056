@@ -49,7 +49,7 @@ const Collision = {
 
     hitTestObject(x, y, obj) {
         if (obj.type === 'group') {
-            if (obj.width && obj.height) {
+            if (obj.width !== undefined && obj.height !== undefined && obj.x !== undefined && obj.y !== undefined) {
                 return this.pointInRect(x, y, obj);
             }
             if (obj.children) {
@@ -91,7 +91,7 @@ const Collision = {
                 const inRange2 = obj.x2 >= minX && obj.x2 <= maxX && obj.y2 >= minY && obj.y2 <= maxY;
                 return inRange1 || inRange2;
             } else if (obj.type === 'group') {
-                if (obj.x && obj.y && obj.width && obj.height) {
+                if (obj.x !== undefined && obj.y !== undefined && obj.width !== undefined && obj.height !== undefined) {
                     const hw = obj.width / 2;
                     const hh = obj.height / 2;
                     return obj.x - hw <= maxX && obj.x + hw >= minX &&
@@ -148,11 +148,13 @@ const Collision = {
                 }
             }
         }
-        const rotatePos = this.getRotateHandlePosition(obj);
-        const dx = x - rotatePos.x;
-        const dy = y - rotatePos.y;
-        if (Math.sqrt(dx * dx + dy * dy) <= 10) {
-            return { type: 'rotate', index: -1 };
+        if (obj.type !== 'group') {
+            const rotatePos = this.getRotateHandlePosition(obj);
+            const dx = x - rotatePos.x;
+            const dy = y - rotatePos.y;
+            if (Math.sqrt(dx * dx + dy * dy) <= 10) {
+                return { type: 'rotate', index: -1 };
+            }
         }
         return null;
     }

@@ -164,10 +164,73 @@ const Store = {
                 }
             });
         }
-        if (group.x !== undefined) {
-            group.x += dx;
-            group.y += dy;
-        }
+        this.updateGroupBounds(group);
+    },
+
+    scaleGroup(group, scaleX, scaleY, centerX, centerY) {
+        if (!group.children) return;
+
+        const scaleChild = (child) => {
+            if (child.type === 'group') {
+                if (child.children) {
+                    child.children.forEach(scaleChild);
+                }
+                this.updateGroupBounds(child);
+            } else if (child.type === 'furniture' || child.type === 'text') {
+                const dx = child.x - centerX;
+                const dy = child.y - centerY;
+                child.x = centerX + dx * scaleX;
+                child.y = centerY + dy * scaleY;
+                child.width *= scaleX;
+                child.height *= scaleY;
+            } else if (child.type === 'wall' || child.type === 'dimension') {
+                const dx1 = child.x1 - centerX;
+                const dy1 = child.y1 - centerY;
+                const dx2 = child.x2 - centerX;
+                const dy2 = child.y2 - centerY;
+                child.x1 = centerX + dx1 * scaleX;
+                child.y1 = centerY + dy1 * scaleY;
+                child.x2 = centerX + dx2 * scaleX;
+                child.y2 = centerY + dy2 * scaleY;
+            }
+        };
+
+        group.children.forEach(scaleChild);
+        this.updateGroupBounds(group);
+    },
+
+    rotateGroup(group, angle, centerX, centerY) {
+        if (!group.children) return;
+
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+
+        const rotateChild = (child) => {
+            if (child.type === 'group') {
+                if (child.children) {
+                    child.children.forEach(rotateChild);
+                }
+                this.updateGroupBounds(child);
+            } else if (child.type === 'furniture' || child.type === 'text') {
+                const dx = child.x - centerX;
+                const dy = child.y - centerY;
+                child.x = centerX + dx * cos - dy * sin;
+                child.y = centerY + dx * sin + dy * cos;
+                child.rotation = (child.rotation || 0) + angle;
+            } else if (child.type === 'wall' || child.type === 'dimension') {
+                const dx1 = child.x1 - centerX;
+                const dy1 = child.y1 - centerY;
+                const dx2 = child.x2 - centerX;
+                const dy2 = child.y2 - centerY;
+                child.x1 = centerX + dx1 * cos - dy1 * sin;
+                child.y1 = centerY + dx1 * sin + dy1 * cos;
+                child.x2 = centerX + dx2 * cos - dy2 * sin;
+                child.y2 = centerY + dx2 * sin + dy2 * cos;
+            }
+        };
+
+        group.children.forEach(rotateChild);
+        this.updateGroupBounds(group);
     },
 
     clearSelection() {
