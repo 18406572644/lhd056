@@ -48,13 +48,31 @@ const FurnitureRenderer = {
             ctx.globalAlpha = 0.6;
         }
 
-        ctx.fillStyle = furniture.color + (isPreview ? '99' : 'cc');
+        if (furniture.materialId && typeof MaterialRenderer !== 'undefined') {
+            MaterialRenderer.drawFilledRect(
+                ctx,
+                -screenWidth / 2,
+                -screenHeight / 2,
+                screenWidth,
+                screenHeight,
+                furniture.materialId,
+                {
+                    scale: furniture.materialScale || 1,
+                    rotation: furniture.materialRotation || 0,
+                    opacity: furniture.materialOpacity !== undefined ? furniture.materialOpacity : 1
+                }
+            );
+        } else {
+            ctx.fillStyle = furniture.color + (isPreview ? '99' : 'cc');
+            ctx.beginPath();
+            ctx.roundRect(-screenWidth / 2, -screenHeight / 2, screenWidth, screenHeight, 4 * scale);
+            ctx.fill();
+        }
+
         ctx.strokeStyle = '#374151';
         ctx.lineWidth = 1.5;
-
         ctx.beginPath();
         ctx.roundRect(-screenWidth / 2, -screenHeight / 2, screenWidth, screenHeight, 4 * scale);
-        ctx.fill();
         ctx.stroke();
 
         ctx.fillStyle = '#374151';

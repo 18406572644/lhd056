@@ -79,7 +79,13 @@
             <div class="properties-panel-header">
                 <h3>属性面板</h3>
             </div>
-            <div class="properties-panel-content" id="properties-panel-content">
+            <div class="properties-tabs" id="properties-tabs">
+                <div class="properties-tab active" data-tab="basic">基础</div>
+                <div class="properties-tab" data-tab="material">材质</div>
+            </div>
+            <div class="properties-tab-content active" id="tab-basic">
+            </div>
+            <div class="properties-tab-content" id="tab-material">
             </div>
         </div>
 
@@ -280,12 +286,14 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
     <script src="js/data/furnitureLibrary.js"></script>
     <script src="js/data/templateLibrary.js"></script>
+    <script src="js/data/materialLibrary.js"></script>
     <script src="js/store.js"></script>
     <script src="js/coordinates.js"></script>
     <script src="js/commands.js"></script>
     <script src="js/utils/collision.js"></script>
     <script src="js/utils/snap.js"></script>
     <script src="js/utils/wallConnection.js"></script>
+    <script src="js/utils/materialRenderer.js"></script>
     <script src="js/utils/export.js"></script>
     <script src="js/renderers/gridRenderer.js"></script>
     <script src="js/renderers/wallRenderer.js"></script>

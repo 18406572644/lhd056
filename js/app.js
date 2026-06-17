@@ -18,6 +18,7 @@ const App = {
 
     init() {
         Store.init();
+        MaterialLibrary.init();
 
         this.tools = {
             select: SelectTool,
@@ -800,10 +801,39 @@ const App = {
     setupPropertiesPanel() {
         const panel = document.getElementById('properties-panel');
         if (!panel) return;
+
+        const tabs = document.querySelectorAll('.properties-tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const tabName = e.currentTarget.dataset.tab;
+                this.switchPropertiesTab(tabName);
+            });
+        });
+
+        const uploadInput = document.createElement('input');
+        uploadInput.type = 'file';
+        uploadInput.id = 'material-upload-input';
+        uploadInput.accept = 'image/*';
+        uploadInput.style.display = 'none';
+        document.body.appendChild(uploadInput);
+
+        uploadInput.addEventListener('change', (e) => {
+            this.handleMaterialUpload(e);
+        });
+    },
+
+    switchPropertiesTab(tabName) {
+        document.querySelectorAll('.properties-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.tab === tabName);
+        });
+        document.querySelectorAll('.properties-tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === `tab-${tabName}`);
+        });
     },
 
     lastSelectedObjectId: null,
     lastSelectedObjectType: null,
+    currentMaterialCategory: 'floor',
 
     updatePropertiesPanel() {
         const panel = document.getElementById('properties-panel');
@@ -825,15 +855,16 @@ const App = {
 
             if (selectedObj.type === 'wall' || selectedObj.type === 'furniture') {
                 panel.classList.add('active');
-                this.renderPropertiesPanelContent(selectedObj);
+                this.renderBasicTab(selectedObj);
+                this.renderMaterialTab(selectedObj);
             } else {
                 panel.classList.remove('active');
             }
         }
     },
 
-    renderPropertiesPanelContent(obj) {
-        const content = document.getElementById('properties-panel-content');
+    renderBasicTab(obj) {
+        const content = document.getElementById('tab-basic');
         if (!content) return;
 
         let html = '';
@@ -893,10 +924,10 @@ const App = {
         }
 
         content.innerHTML = html;
-        this.bindPropertyInputs(obj);
+        this.bindBasicPropertyInputs(obj);
     },
 
-    bindPropertyInputs(obj) {
+    bindBasicPropertyInputs(obj) {
         if (obj.type === 'wall') {
             const heightInput = document.getElementById('prop-wall-height');
             const thicknessInput = document.getElementById('prop-wall-thickness');
@@ -950,6 +981,274 @@ const App = {
                 });
             }
         }
+    },
+
+    renderMaterialTab(obj) {
+        const content = document.getElementById('tab-material');
+        if (!content) return;
+
+        const objType = obj.type;
+        const currentMaterialId = obj.materialId || null;
+
+        if (objType === 'wall') {
+            this.currentMaterialCategory = 'wall';
+        } else {
+            this.currentMaterialCategory = 'floor';
+        }
+
+        const categories = this.getMaterialCategoriesForType(objType);
+        const materials = MaterialLibrary.getApplicableMaterials(objType) || [];
+
+        let html = `
+            <div class="material-category-tabs">
+        `;
+
+        categories.forEach(cat => {
+            const isActive = cat.id === this.currentMaterialCategory;
+            html += `
+                <div class="material-category-tab ${isActive ? 'active' : ''}" 
+                     data-category="${cat.id}">${cat.name}</div>
+            `;
+        });
+
+        html += `
+            </div>
+            <div class="material-grid" id="material-grid">
+        `;
+
+        const categoryMaterials = materials.filter(m => {
+            if (this.currentMaterialCategory === 'custom') {
+                return m.isCustom;
+            }
+            return m.type === this.currentMaterialCategory || 
+                   (this.currentMaterialCategory === 'floor' && m.type === 'floor');
+        });
+
+        if (categoryMaterials.length === 0) {
+            html += `<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">暂无材质</div>`;
+        } else {
+            categoryMaterials.forEach(material => {
+                const isActive = material.id === currentMaterialId;
+                html += `
+                    <div class="material-card ${isActive ? 'active' : ''}" data-material-id="${material.id}">
+                        <div class="material-thumb" id="material-thumb-${material.id}"></div>
+                        <span class="material-name">${material.name}</span>
+                    </div>
+                `;
+            });
+        }
+
+        html += `
+            </div>
+            <button class="material-upload-btn" id="material-upload-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                上传自定义纹理
+            </button>
+        `;
+
+        if (currentMaterialId) {
+            html += `
+                <div class="material-params-section">
+                    <div class="property-group-title" style="margin-bottom: 10px;">纹理参数</div>
+                    
+                    <div class="property-item">
+                        <span class="property-label">平铺密度</span>
+                        <div class="property-slider-row">
+                            <input type="range" class="property-slider" id="material-scale-slider" 
+                                   min="0.2" max="3" step="0.1" value="${obj.materialScale || 1}">
+                            <span class="property-slider-value" id="material-scale-value">${(obj.materialScale || 1).toFixed(1)}x</span>
+                        </div>
+                    </div>
+                    
+                    <div class="property-item">
+                        <span class="property-label">旋转角度</span>
+                        <div class="property-slider-row">
+                            <input type="range" class="property-slider" id="material-rotation-slider" 
+                                   min="0" max="360" step="15" value="${obj.materialRotation || 0}">
+                            <span class="property-slider-value" id="material-rotation-value">${obj.materialRotation || 0}°</span>
+                        </div>
+                    </div>
+                    
+                    <div class="property-item">
+                        <span class="property-label">透明度</span>
+                        <div class="property-slider-row">
+                            <input type="range" class="property-slider" id="material-opacity-slider" 
+                                   min="0" max="1" step="0.1" value="${obj.materialOpacity !== undefined ? obj.materialOpacity : 1}">
+                            <span class="property-slider-value" id="material-opacity-value">${Math.round((obj.materialOpacity !== undefined ? obj.materialOpacity : 1) * 100)}%</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="material-none-btn" id="material-remove-btn">移除材质</button>
+            `;
+        }
+
+        content.innerHTML = html;
+        this.bindMaterialTabEvents(obj);
+        this.renderMaterialThumbnails(categoryMaterials);
+    },
+
+    getMaterialCategoriesForType(objType) {
+        if (objType === 'wall') {
+            return [
+                { id: 'wall', name: '墙面' },
+                { id: 'custom', name: '自定义' }
+            ];
+        } else {
+            return [
+                { id: 'floor', name: '地板' },
+                { id: 'custom', name: '自定义' }
+            ];
+        }
+    },
+
+    renderMaterialThumbnails(materials) {
+        materials.forEach(material => {
+            const thumbEl = document.getElementById(`material-thumb-${material.id}`);
+            if (thumbEl) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                const textureCanvas = MaterialLibrary.generateTextureCanvas(material, 64);
+                ctx.drawImage(textureCanvas, 0, 0);
+                thumbEl.appendChild(canvas);
+            }
+        });
+    },
+
+    bindMaterialTabEvents(obj) {
+        const categoryTabs = document.querySelectorAll('.material-category-tab');
+        categoryTabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                this.currentMaterialCategory = e.currentTarget.dataset.category;
+                this.renderMaterialTab(obj);
+            });
+        });
+
+        const materialCards = document.querySelectorAll('.material-card');
+        materialCards.forEach(card => {
+            card.addEventListener('click', () => {
+                const materialId = card.dataset.materialId;
+                this.applyMaterialToObject(obj.id, materialId);
+            });
+        });
+
+        const uploadBtn = document.getElementById('material-upload-btn');
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', () => {
+                document.getElementById('material-upload-input').click();
+            });
+        }
+
+        const scaleSlider = document.getElementById('material-scale-slider');
+        const scaleValue = document.getElementById('material-scale-value');
+        if (scaleSlider) {
+            scaleSlider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                scaleValue.textContent = value.toFixed(1) + 'x';
+                this.updateMaterialParam(obj.id, 'scale', value);
+            });
+        }
+
+        const rotationSlider = document.getElementById('material-rotation-slider');
+        const rotationValue = document.getElementById('material-rotation-value');
+        if (rotationSlider) {
+            rotationSlider.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                rotationValue.textContent = value + '°';
+                this.updateMaterialParam(obj.id, 'rotation', value);
+            });
+        }
+
+        const opacitySlider = document.getElementById('material-opacity-slider');
+        const opacityValue = document.getElementById('material-opacity-value');
+        if (opacitySlider) {
+            opacitySlider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                opacityValue.textContent = Math.round(value * 100) + '%';
+                this.updateMaterialParam(obj.id, 'opacity', value);
+            });
+        }
+
+        const removeBtn = document.getElementById('material-remove-btn');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => {
+                this.removeMaterialFromObject(obj.id);
+            });
+        }
+    },
+
+    applyMaterialToObject(objectId, materialId) {
+        if (typeof MaterialRenderer !== 'undefined') {
+            MaterialRenderer.applyMaterialToObject(objectId, materialId);
+        } else {
+            Store.updateObject(objectId, { materialId: materialId });
+        }
+        
+        const obj = Store.getObject(objectId);
+        if (obj) {
+            this.renderMaterialTab(obj);
+        }
+    },
+
+    updateMaterialParam(objectId, param, value) {
+        if (typeof MaterialRenderer !== 'undefined') {
+            MaterialRenderer.updateMaterialParams(objectId, { [param]: value });
+        } else {
+            const updates = {};
+            updates[`material${param.charAt(0).toUpperCase() + param.slice(1)}`] = value;
+            Store.updateObject(objectId, updates);
+        }
+    },
+
+    removeMaterialFromObject(objectId) {
+        if (typeof MaterialRenderer !== 'undefined') {
+            MaterialRenderer.removeMaterialFromObject(objectId);
+        } else {
+            Store.updateObject(objectId, { materialId: null });
+        }
+        
+        const obj = Store.getObject(objectId);
+        if (obj) {
+            this.renderMaterialTab(obj);
+        }
+    },
+
+    handleMaterialUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const imageData = event.target.result;
+            
+            const material = {
+                id: 'custom_' + Date.now(),
+                name: '自定义材质',
+                type: 'custom',
+                isCustom: true,
+                imageData: imageData,
+                color: '#ffffff',
+                pattern: 'custom',
+                defaultScale: 50
+            };
+
+            MaterialLibrary.addCustomMaterial(material);
+            MaterialRenderer.clearCache();
+
+            const selectedObj = Store.selection.objectId ? Store.getObject(Store.selection.objectId) : null;
+            if (selectedObj) {
+                this.currentMaterialCategory = 'custom';
+                this.renderMaterialTab(selectedObj);
+            }
+        };
+        reader.readAsDataURL(file);
+        
+        e.target.value = '';
     },
 
     renderLoop() {

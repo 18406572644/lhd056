@@ -138,14 +138,28 @@ const WallRenderer = {
             ctx.stroke();
             ctx.setLineDash([]);
         } else {
-            ctx.fillStyle = '#333333';
-            ctx.beginPath();
-            ctx.moveTo(sX + nx, sY + ny);
-            ctx.lineTo(eX + nx, eY + ny);
-            ctx.lineTo(eX - nx, eY - ny);
-            ctx.lineTo(sX - nx, sY - ny);
-            ctx.closePath();
-            ctx.fill();
+            if (wall.materialId && typeof MaterialRenderer !== 'undefined') {
+                const points = [
+                    { x: sX + nx, y: sY + ny },
+                    { x: eX + nx, y: eY + ny },
+                    { x: eX - nx, y: eY - ny },
+                    { x: sX - nx, y: sY - ny }
+                ];
+                MaterialRenderer.drawFilledPolygon(ctx, points, wall.materialId, {
+                    scale: wall.materialScale || 1,
+                    rotation: wall.materialRotation || 0,
+                    opacity: wall.materialOpacity !== undefined ? wall.materialOpacity : 1
+                });
+            } else {
+                ctx.fillStyle = '#333333';
+                ctx.beginPath();
+                ctx.moveTo(sX + nx, sY + ny);
+                ctx.lineTo(eX + nx, eY + ny);
+                ctx.lineTo(eX - nx, eY - ny);
+                ctx.lineTo(sX - nx, sY - ny);
+                ctx.closePath();
+                ctx.fill();
+            }
 
             ctx.strokeStyle = '#1a1a1a';
             ctx.lineWidth = 1;
